@@ -269,7 +269,8 @@ final class Store: ObservableObject {
     @Published var zapChat: String?
     /// popover: aba Zap mostrando todas as conversas em vez das não lidas resumidas
     @Published var zapTodas = false
-    @Published var layout: Layout = Layout(rawValue: UserDefaults.standard.string(forKey: "zap.layout") ?? "") ?? .classico {
+    /// um layout só: Hoje (raias Responder / Fazer / Aguardando)
+    @Published var layout: Layout = .hoje {
         didSet { UserDefaults.standard.set(layout.rawValue, forKey: "zap.layout"); onLayout?() }
     }
     var onLayout: (() -> Void)?

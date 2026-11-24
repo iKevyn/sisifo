@@ -1,3 +1,4 @@
+import ServiceManagement
 import SwiftUI
 import AppKit
 
@@ -650,16 +651,23 @@ struct ListaEntregues: View {
 struct MenuJanela: View {
     @ObservedObject var store: Store
     @ObservedObject var m: JanelaModel
+    @AppStorage("sound") var som = WakeSound.padrao
     var body: some View {
         Menu {
-            Picker("Layout", selection: $store.layout) {
-                ForEach(Layout.allCases) { Text($0.nome).tag($0) }
-            }
-            .pickerStyle(.inline)
-            Divider()
             Picker("Aparência", selection: $m.tema) {
                 Text("Automático").tag("auto"); Text("Claro").tag("claro"); Text("Escuro").tag("escuro")
             }
+            Divider()
+            Menu("Som de demanda nova") {
+                ForEach(WakeSound.options, id: \.id) { o in
+                    Toggle(L(o.name), isOn: Binding(get: { som == o.id }, set: { _ in som = o.id; WakeSound.play(o.id) }))
+                }
+                Divider()
+                Toggle("Sem som", isOn: Binding(get: { som == "off" }, set: { _ in som = "off" }))
+            }
+            Toggle("Abrir quando ligar o Mac", isOn: Binding(
+                get: { SMAppService.mainApp.status == .enabled },
+                set: { on in if on { try? SMAppService.mainApp.register() } else { try? SMAppService.mainApp.unregister() } }))
             Divider()
             Button("Atualizar") { Task { await store.refresh(); await store.zp.refresh() } }
         } label: {
@@ -667,7 +675,7 @@ struct MenuJanela: View {
                 .frame(width: 30, height: 30).background(Circle().fill(Color.primary.opacity(0.07)))
         }
         .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
-        .help("Layout e aparência")
+        .help("Ajustes")
     }
 }
 

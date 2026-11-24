@@ -756,15 +756,8 @@ struct GearMenu: View {
                     ui.launch = SMAppService.mainApp.status == .enabled
                 }))
             Menu("Som de demanda nova") {
-                Section("Daemon") {
-                    ForEach(WakeSound.options, id: \.id) { o in
-                        Toggle(o.name, isOn: Binding(get: { sound == o.id }, set: { _ in sound = o.id; WakeSound.play(o.id) }))
-                    }
-                }
-                Section("Monstrinhos 8-bit") {
-                    ForEach(WakeSound.mobs, id: \.id) { o in
-                        Toggle(o.name, isOn: Binding(get: { sound == o.id }, set: { _ in sound = o.id; WakeSound.play(o.id) }))
-                    }
+                ForEach(WakeSound.options, id: \.id) { o in
+                    Toggle(L(o.name), isOn: Binding(get: { sound == o.id }, set: { _ in sound = o.id; WakeSound.play(o.id) }))
                 }
                 Divider()
                 Toggle("Sem som", isOn: Binding(get: { sound == "off" }, set: { _ in sound = "off" }))

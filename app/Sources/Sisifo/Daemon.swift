@@ -183,26 +183,25 @@ enum IdleAnim {
     }
 }
 
-/// som do daemon quando chega demanda nova (escolhido no menu ⚙︎ → Som de demanda nova)
+/// som de demanda nova (janela › Ajustes › Som de demanda nova). Gerados por tools/sons_sisifo.py
 enum WakeSound {
     static let options: [(id: String, name: String)] = [
-        ("b", "Diabinho rindo 😈"),
-        ("a", "Sininho misterioso"),
-        ("c", "Tchan tchan vilão"),
+        ("pedra-topo", "Chegou no topo"),
+        ("pedra-rolando", "Pedra rolando"),
+        ("toque-pedra", "Toque na pedra"),
+        ("rachadura", "Rachadura"),
+        ("eco-morro", "Eco do morro"),
+        ("empurrao", "Empurrão"),
     ]
-    static let mobs: [(id: String, name: String)] = [
-        ("mob-enderman", "Enderman 8-bit"),
-        ("mob-creeper", "Creeper 8-bit"),
-        ("mob-zumbi", "Zumbi 8-bit"),
-        ("mob-esqueleto", "Esqueleto 8-bit"),
-        ("mob-ghast", "Ghast 8-bit"),
-        ("mob-slime", "Slime 8-bit"),
-    ]
-    static var current: String { UserDefaults.standard.string(forKey: "sound") ?? "b" }
+    static let padrao = "pedra-topo"
+    static var current: String {
+        let v = UserDefaults.standard.string(forKey: "sound") ?? padrao
+        return v == "off" || options.contains(where: { $0.id == v }) ? v : padrao
+    }
     nonisolated(unsafe) private static var playing: NSSound?
 
     static func play(_ v: String = current) {
-        guard v != "off", let url = Bundle.main.url(forResource: v.count == 1 ? "daemon-\(v)" : v, withExtension: "wav", subdirectory: "sounds") else { return }
+        guard v != "off", let url = Bundle.main.url(forResource: v, withExtension: "wav", subdirectory: "sounds") else { return }
         playing?.stop()
         let snd = NSSound(contentsOf: url, byReference: true)
         snd?.volume = 0.8

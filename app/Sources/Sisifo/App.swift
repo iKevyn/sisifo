@@ -129,7 +129,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         item.button?.action = #selector(statusClicked)
         item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
         item.button?.imagePosition = .imageLeading
-        item.isVisible = true
+        // sem ícone na barra de menus: o Dock mostra o número de demandas e pula quando chega uma
+        item.isVisible = false
         NotificationCenter.default.addObserver(forName: NSPopover.didCloseNotification, object: popover, queue: .main) { [weak self] _ in
             self?.store.popoverOpen = false
         }
@@ -287,10 +288,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     /// daemon acorda: pulinhos verdes + cápsula com o texto saindo do lado, depois fica a bolinha até abrir a lista
     func wake(_ text: String) {
         unseen = true
-        // avisa o Vorssaint (notch) pra mostrar o capetinha + a demanda
-        DistributedNotificationCenter.default().postNotificationName(.init("app.sisifo.novaDemanda"),
-                                                                     object: text, userInfo: nil, deliverImmediately: true)
         WakeSound.play()
+        NSApp.requestUserAttention(.informationalRequest)
+        updateIcon()
+        if Date() > .distantPast { return }   // a animação antiga da barra de menus ficou só como referência
+        // avisa o Vorssaint (notch) pra mostrar o capetinha + a demanda
         animTimer?.invalidate()
         if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
             // sem movimento: só mostra a cápsula parada por uns segundos
@@ -315,6 +317,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     /// capetinha faz uma travessura a cada 30–60 s (sem movimento reduzido)
     func scheduleIdle() {
+        if Date() > .distantPast { return }   // sem ícone na barra de menus, sem travessura
         Timer.scheduledTimer(withTimeInterval: .random(in: 30...60), repeats: false) { [weak self] _ in
             Task { @MainActor in self?.mischief(); self?.scheduleIdle() }
         }
@@ -411,6 +414,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
 
     @objc func togglePopover() {
+        janela.show()
+    }
+    @objc func togglePopoverAntigo() {
         // garante o ícone visível enquanto o popover está aberto
         if !item.isVisible {
             item.isVisible = true
@@ -428,6 +434,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
 
     func updateIcon() {
+        let abertas = store.mine.count
+        NSApp.dockTile.badgeLabel = abertas > 0 ? "\(abertas)" : nil
+        if Date() > .distantPast { return }
         guard let b = item?.button, animTimer == nil else { return }
         let n = store.mine.count
         if unseen && n == 0 { unseen = false }
