@@ -23,10 +23,14 @@ The app is available in **English** and **Portuguese** (choose on the first scre
 ## Install
 
 1. Download `Sisifo.dmg` from [Releases](../../releases) and drag the app to Applications.
-2. The first time, right-click the app and choose **Open** (it is not signed by Apple yet).
+2. Open it. Sísifo is not signed by Apple yet, so the first time macOS may say it can't verify the app. Go to **System Settings › Privacy & Security**, scroll down and click **Open Anyway** (on older macOS: right-click the app and choose **Open**).
+   If macOS says the app is damaged, run this once in Terminal and open it again:
+   ```sh
+   xattr -dr com.apple.quarantine /Applications/Sisifo.app
+   ```
 3. Follow the setup: connect Claude, scan the WhatsApp QR code, pick your team.
 
-**Requires:** macOS 26 on an Apple Silicon Mac, and [Claude Code](https://claude.com/claude-code) installed.
+**Requires:** macOS 26 on an Apple Silicon Mac (Intel Macs are not supported), and [Claude Code](https://claude.com/claude-code) installed and signed in. Sísifo finds Claude Code wherever it was installed (native installer, Homebrew, npm, nvm, Volta, Bun, asdf).
 
 ## Updates
 

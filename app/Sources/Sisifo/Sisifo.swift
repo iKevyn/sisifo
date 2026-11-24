@@ -29,10 +29,37 @@ enum Sisifo {
         return ["/opt/homebrew/bin/node", "/usr/local/bin/node"].first { FileManager.default.isExecutableFile(atPath: $0) }
     }
 
+    /// onde está o `claude`: lugares comuns e, se não achar, pergunta pro shell da pessoa
+    /// (pega instalação por npm, nvm, volta, bun, asdf…). Guarda o que achou.
+    nonisolated(unsafe) private static var claudeAchado: String?
     static var claude: String? {
-        let h = FileManager.default.homeDirectoryForCurrentUser.path
-        return ["\(h)/.local/bin/claude", "\(h)/.claude/local/claude", "/opt/homebrew/bin/claude", "/usr/local/bin/claude"]
-            .first { FileManager.default.isExecutableFile(atPath: $0) }
+        let fm = FileManager.default
+        if let c = claudeAchado, fm.isExecutableFile(atPath: c) { return c }
+        let h = fm.homeDirectoryForCurrentUser.path
+        let comuns = ["\(h)/.local/bin/claude", "\(h)/.claude/local/claude", "/opt/homebrew/bin/claude", "/usr/local/bin/claude",
+                      "\(h)/.npm-global/bin/claude", "\(h)/.volta/bin/claude", "\(h)/.bun/bin/claude", "\(h)/.asdf/shims/claude"]
+        if let c = comuns.first(where: { fm.isExecutableFile(atPath: $0) }) { claudeAchado = c; return c }
+        // nvm: a versão de node mais nova que tiver o claude
+        let nvm = "\(h)/.nvm/versions/node"
+        if let vs = try? fm.contentsOfDirectory(atPath: nvm) {
+            for v in vs.sorted(by: >) where fm.isExecutableFile(atPath: "\(nvm)/\(v)/bin/claude") {
+                claudeAchado = "\(nvm)/\(v)/bin/claude"; return claudeAchado
+            }
+        }
+        // último recurso: o shell de login da pessoa (lê o .zshrc/.bash_profile dela)
+        let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: shell)
+        p.arguments = ["-ilc", "command -v claude"]
+        let pipe = Pipe(); p.standardOutput = pipe; p.standardError = Pipe()
+        guard (try? p.run()) != nil else { return nil }
+        let limite = Date().addingTimeInterval(4)
+        while p.isRunning && Date() < limite { usleep(50_000) }
+        if p.isRunning { p.terminate(); return nil }
+        let out = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        let caminho = out.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }.last { $0.hasPrefix("/") } ?? ""
+        if fm.isExecutableFile(atPath: caminho) { claudeAchado = caminho; return caminho }
+        return nil
     }
 
     static var bridgeToken: String? {
@@ -47,8 +74,9 @@ enum Sisifo {
         e["SISIFO_PORT"] = "\(appPort)"
         e["SISIFO_CHAT_PORT"] = "\(chatPort)"
         e["WA_BRIDGE_PORT"] = "\(bridgePort)"
-        if let c = claude { e["SISIFO_CLAUDE"] = c }
-        e["PATH"] = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:" + (e["PATH"] ?? "")
+        var extra = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+        if let c = claude { e["SISIFO_CLAUDE"] = c; extra = (c as NSString).deletingLastPathComponent + ":" + extra }
+        e["PATH"] = extra + ":" + (e["PATH"] ?? "")
         return e
     }
 

@@ -21,10 +21,14 @@ Tudo roda no teu Mac. As mensagens ficam em `~/Library/Application Support/Sisif
 ## Instalar
 
 1. Baixa o `Sisifo.dmg` na página de [Releases](../../releases) e arrasta o app pra Aplicativos.
-2. Na primeira vez, clica com o botão direito no app e escolhe **Abrir** (o app ainda não é assinado pela Apple).
+2. Abre o app. Ele ainda não é assinado pela Apple, então na primeira vez o macOS pode dizer que não conseguiu verificar. Vai em **Ajustes do Sistema › Privacidade e Segurança**, desce até o fim e clica em **Abrir Mesmo Assim** (em macOS mais antigo: botão direito no app e **Abrir**).
+   Se o macOS disser que o app está danificado, roda isso uma vez no Terminal e abre de novo:
+   ```sh
+   xattr -dr com.apple.quarantine /Applications/Sisifo.app
+   ```
 3. Segue as telas: conecta o Claude, escaneia o QR do WhatsApp, marca tua equipe.
 
-**Precisa de:** macOS 26 num Mac com Apple Silicon e o [Claude Code](https://claude.com/claude-code) instalado.
+**Precisa de:** macOS 26 num Mac com Apple Silicon (Mac Intel não funciona) e o [Claude Code](https://claude.com/claude-code) instalado e logado. O Sísifo acha o Claude Code em qualquer instalação (instalador oficial, Homebrew, npm, nvm, Volta, Bun, asdf).
 
 ## Atualizações
 
