@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Sísifo · pedra adesivo</title>
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  body { font: 15px/1.4 -apple-system, system-ui, sans-serif; background: #E9EBEE; color: #1d1d1f; padding: 48px; }
+  h1 { font: 700 34px/1.1 -apple-system, system-ui; letter-spacing: -.02em; }
+  p.sub { margin-top: 8px; color: #6e6e73; }
+  .grade { margin-top: 36px; display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 28px; }
+  .item { background: #fff; border-radius: 28px; padding: 24px 22px 22px; display: flex; flex-direction: column; align-items: center; gap: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.06); }
+  .tile { width: 180px; height: 180px; border-radius: 41px; overflow: hidden; box-shadow: 0 0 0 .5px rgba(0,0,0,.12), 0 14px 30px rgba(0,0,0,.18); }
+  .tile svg { width: 100%; height: 100%; display: block; }
+  .nome { font-weight: 700; font-size: 16px; }
+  .desc { color: #6e6e73; font-size: 13px; text-align: center; margin-top: -8px; }
+  .num { font: 600 12px/1 ui-monospace, monospace; color: #8e8e93; }
+  .lbl { margin-top: 40px; font-weight: 700; color: #6e6e73; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; }
+  .dock { margin-top: 14px; display: inline-flex; gap: 14px; padding: 12px 16px; border-radius: 26px; background: rgba(255,255,255,.6); box-shadow: 0 10px 30px rgba(0,0,0,.12); }
+  .dock .tile { width: 64px; height: 64px; border-radius: 15px; }
+  .escuro { background: #1d1d1f; }
+</style>
+</head>
+<body>
+<h1>Sísifo · pedra adesivo</h1>
+<p class="sub">Pedra facetada, gordinha e de cantos redondos, como adesivo recortado (borda branca grossa e sombrinha), na pegada dos ícones do Obsidian e do Arc.</p>
+<div class="grade" id="g"></div>
+<div class="lbl">No Dock claro</div><div class="dock" id="d1"></div>
+<div class="lbl">No Dock escuro</div><div class="dock escuro" id="d2"></div>
+
+<script>
+// silhueta da pedra (gordinha) e as faces
+const SIL = "M62 150 C52 124 56 98 70 82 L84 64 C92 54 104 48 118 46 L136 44 C146 44 154 50 160 58 L172 80 C178 92 178 104 174 116 L170 140 C168 160 156 172 140 176 L104 180 C86 182 70 172 62 150 Z";
+const FACES = (c) => `
+  <path d="${SIL}" fill="${c.base}"/>
+  <path d="M120 50 L136 44 C146 44 154 50 160 58 L172 80 C175 88 172 96 164 96 L152 96 C144 96 138 104 132 112 C124 104 116 92 112 80 L112 62 C112 56 115 52 120 50 Z" fill="${c.luz}"/>
+  <path d="M74 92 L104 84 C110 94 112 106 108 118 L102 140 L92 158 C82 146 74 132 70 118 L70 100 C70 96 71 93 74 92 Z" fill="${c.sombra}"/>
+  <path d="M118 142 C130 136 144 132 158 130 L170 130 L168 148 C166 160 158 168 146 171 L132 174 C126 164 122 154 118 142 Z" fill="${c.luz2}"/>
+  <path d="M84 62 C92 54 104 48 118 46 C112 52 104 58 94 62 Z" fill="${c.topo}"/>`;
+const ROSTO = (c) => `
+  <circle cx="108" cy="128" r="5.5" fill="${c.olho}"/><circle cx="136" cy="128" r="5.5" fill="${c.olho}"/>
+  <circle cx="110" cy="126" r="1.8" fill="#fff"/><circle cx="138" cy="126" r="1.8" fill="#fff"/>
+  <path d="M116 140 Q122 146 128 140" stroke="${c.olho}" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+  <ellipse cx="98" cy="140" rx="7" ry="4" fill="${c.bochecha}" opacity=".6"/><ellipse cx="146" cy="140" rx="7" ry="4" fill="${c.bochecha}" opacity=".6"/>`;
+const BRILHO = `<path d="M134 62 l3 8 l8 3 l-8 3 l-3 8 l-3 -8 l-8 -3 l8 -3 z" fill="#fff" opacity=".9"/>`;
+
+const svg = (fundo, c, extras = '', id) => `<svg viewBox="0 0 220 220">
+  <defs><filter id="s${id}" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="7" stdDeviation="7" flood-opacity=".22"/></filter></defs>
+  <rect width="220" height="220" fill="${fundo}"/>
+  <g transform="translate(-6 -4) scale(1.05)">
+    <g filter="url(#s${id})"><path d="${SIL}" fill="#fff" stroke="#fff" stroke-width="22" stroke-linejoin="round"/></g>
+    <g stroke-linejoin="round">${FACES(c)}</g>${extras}
+  </g></svg>`;
+
+const P = {
+  roxa:   { base:'#5B45A8', luz:'#A98CF6', sombra:'#3A2B70', luz2:'#8667E0', topo:'#7A60D0', olho:'#241A45', bochecha:'#F29BC2' },
+  granito:{ base:'#8E8681', luz:'#C4B6A8', sombra:'#5E686E', luz2:'#D2BFAD', topo:'#66727A', olho:'#2E3236', bochecha:'#F0A6A0' },
+  verde:  { base:'#7E878C', luz:'#5DBB82', sombra:'#545E63', luz2:'#8ADBA9', topo:'#4F5A60', olho:'#2B3236', bochecha:'#F5A3A3' },
+  basalto:{ base:'#45413F', luz:'#7F7872', sombra:'#2A2827', luz2:'#66605B', topo:'#1F1E1D', olho:'#111', bochecha:'#E6948C' },
+  rosa:   { base:'#C77FA6', luz:'#F2B8D6', sombra:'#8F5079', luz2:'#E59BC2', topo:'#A86290', olho:'#4A2240', bochecha:'#FFD1E3' },
+  azul:   { base:'#4F79C7', luz:'#9DC0F5', sombra:'#2E4F8F', luz2:'#79A3EE', topo:'#3D63AD', olho:'#14254A', bochecha:'#F5A3C0' },
+};
+const V = [
+  ['Obsidiana adesivo', 'Roxa facetada com brilho, fundo lilás. A mais Obsidian.', '#EEE9FB', P.roxa, BRILHO],
+  ['Obsidiana fofa', 'A roxa com rostinho e bochechas.', '#EEE9FB', P.roxa, ROSTO(P.roxa)],
+  ['Obsidiana noite', 'Roxa num fundo escuro, com brilho.', '#1F1A2E', P.roxa, BRILHO],
+  ['Granito fofo', 'Os tons da tua referência, com rostinho.', '#F2EEE8', P.granito, ROSTO(P.granito)],
+  ['Geodo verde', 'Pedra cinza com face de cristal verde do app e brilho.', '#E3F3E9', P.verde, BRILHO],
+  ['Basalto fofo', 'Quase preta, rostinho e bochecha rosa.', '#EDEBE8', P.basalto, ROSTO(P.basalto)],
+  ['Quartzo rosa', 'Rosa facetada, bem fofa.', '#FCEAF3', P.rosa, ROSTO(P.rosa)],
+  ['Safira', 'Azul facetada com brilho.', '#E6EEFB', P.azul, BRILHO],
+];
+const g = document.getElementById('g');
+V.forEach(([n, d, fundo, c, ex], i) => {
+  g.insertAdjacentHTML('beforeend', `<div class="item"><span class="num">${String(i+1).padStart(2,'0')}</span><div class="tile">${svg(fundo, c, ex, 'g'+i)}</div><div class="nome">${n}</div><div class="desc">${d}</div></div>`);
+  ['d1','d2'].forEach((id, k) => document.getElementById(id).insertAdjacentHTML('beforeend', `<div class="tile" title="${n}">${svg(fundo, c, ex, id+i)}</div>`));
+});
+</script>
+</body>
+</html>

@@ -660,6 +660,8 @@ struct MenuJanela: View {
             Divider()
             Toggle("Som de demanda nova", isOn: Binding(get: { som != "off" },
                 set: { on in som = on ? WakeSound.padrao : "off"; if on { WakeSound.play(WakeSound.padrao) } }))
+            Toggle("Avisar mensagens novas", isOn: Binding(get: { AvisoMensagens.ligado }, set: { AvisoMensagens.ligado = $0 }))
+                .help("Desliga se o WhatsApp do Mac já te avisa, pra não duplicar")
             Toggle("Abrir quando ligar o Mac", isOn: Binding(
                 get: { SMAppService.mainApp.status == .enabled },
                 set: { on in if on { try? SMAppService.mainApp.register() } else { try? SMAppService.mainApp.unregister() } }))

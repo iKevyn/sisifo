@@ -493,6 +493,11 @@ struct OnboardingView: View {
             VStack(spacing: 0) {
                 linha(icone: "bell", cor: .red, titulo: "Notificações", sub: "Avisa quando alguém te pede algo.") { Toggle("", isOn: $m.notificacoes).toggleStyle(.switch) }
                 Divider().padding(.leading, 56)
+                linha(icone: "bubble.left.and.bubble.right", cor: .green, titulo: "Avisar mensagens novas",
+                      sub: AvisoMensagens.outroAppDeWhats ? "Teu WhatsApp do Mac já avisa. Deixa desligado pra não duplicar." : "Aviso no Mac a cada mensagem nova.") {
+                    Toggle("", isOn: Binding(get: { AvisoMensagens.ligado }, set: { AvisoMensagens.ligado = $0 })).toggleStyle(.switch)
+                }
+                Divider().padding(.leading, 56)
                 linha(icone: "mic", cor: .orange, titulo: "Microfone", sub: "Só quando tu grava um áudio.") { Toggle("", isOn: $m.microfone).toggleStyle(.switch) }
                 Divider().padding(.leading, 56)
                 linha(icone: "macwindow", cor: .blue, titulo: "Abrir ao iniciar o Mac", sub: "Pra não perder nada.") { Toggle("", isOn: $m.iniciarComMac).toggleStyle(.switch) }

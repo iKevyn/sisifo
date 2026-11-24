@@ -237,6 +237,7 @@ final class ChatStore: ObservableObject {
 
     private func notificar(_ m: Incoming) {
         notified.insert(m.id)
+        guard AvisoMensagens.ligado else { return }   // o WhatsApp do Mac já avisa: não duplica
         let c = UNMutableNotificationContent()
         c.title = m.name
         c.body = m.text.count > 140 ? String(m.text.prefix(140)) + "…" : m.text

@@ -26,31 +26,40 @@ enum Daemon {
             color.setFill()
             color.setStroke()
 
-            // Sísifo: o pedregulho (pedra alta e torta com rachadura), no lugar do daemon
-            let k: CGFloat = 0.178
-            func R(_ x: CGFloat, _ y: CGFloat) -> NSPoint { NSPoint(x: 11.5 + (x - 65) * k, y: 13.4 + (y - 64) * k) }
+            // Sísifo: a pedra de basalto facetada (mesma do ícone), em silhueta pra barra de menus
+            // coordenadas do SVG do ícone (viewBox 0 0 220, pedra entre x 52..178 e y 44..182)
+            let k: CGFloat = 0.142
+            func R(_ x: CGFloat, _ y: CGFloat) -> NSPoint { NSPoint(x: 11.5 + (x - 116) * k, y: 13.0 + (y - 113) * k) }
             let rock = NSBezierPath()
-            rock.move(to: R(34, 96))
-            rock.curve(to: R(40, 34), controlPoint1: R(22, 80), controlPoint2: R(24, 52))
-            rock.curve(to: R(96, 34), controlPoint1: R(54, 18), controlPoint2: R(82, 16))
-            rock.curve(to: R(96, 100), controlPoint1: R(110, 52), controlPoint2: R(108, 84))
-            rock.curve(to: R(34, 96), controlPoint1: R(84, 112), controlPoint2: R(46, 112))
+            rock.move(to: R(62, 150))
+            rock.curve(to: R(70, 82), controlPoint1: R(52, 124), controlPoint2: R(56, 98))
+            rock.line(to: R(84, 64))
+            rock.curve(to: R(118, 46), controlPoint1: R(92, 54), controlPoint2: R(104, 48))
+            rock.line(to: R(136, 44))
+            rock.curve(to: R(160, 58), controlPoint1: R(146, 44), controlPoint2: R(154, 50))
+            rock.line(to: R(172, 80))
+            rock.curve(to: R(174, 116), controlPoint1: R(178, 92), controlPoint2: R(178, 104))
+            rock.line(to: R(170, 140))
+            rock.curve(to: R(140, 176), controlPoint1: R(168, 160), controlPoint2: R(156, 172))
+            rock.line(to: R(104, 180))
+            rock.curve(to: R(62, 150), controlPoint1: R(86, 182), controlPoint2: R(70, 172))
             rock.close()
-            let crack = NSBezierPath()
-            crack.move(to: R(66, 14)); crack.line(to: R(60, 44)); crack.line(to: R(72, 54)); crack.line(to: R(64, 76)); crack.line(to: R(70, 90))
-            crack.move(to: R(40, 60)); crack.line(to: R(52, 66))
-            crack.lineJoinStyle = .round; crack.lineCapStyle = .round
+            // arestas das faces (vazadas quando cheia, riscadas quando só contorno)
+            let faces = NSBezierPath()
+            faces.move(to: R(116, 48)); faces.line(to: R(112, 80)); faces.line(to: R(132, 112)); faces.line(to: R(152, 96)); faces.line(to: R(172, 92))
+            faces.move(to: R(104, 84)); faces.line(to: R(108, 118)); faces.line(to: R(94, 160))
+            faces.lineJoinStyle = .round; faces.lineCapStyle = .round
             if filled {
                 rock.fill()
                 NSGraphicsContext.current?.compositingOperation = .clear
-                crack.lineWidth = 1.7
-                crack.stroke()
+                faces.lineWidth = 1.3
+                faces.stroke()
                 NSGraphicsContext.current?.compositingOperation = .sourceOver
             } else {
-                rock.lineWidth = 1.9; rock.lineJoinStyle = .round
+                rock.lineWidth = 1.8; rock.lineJoinStyle = .round
                 rock.stroke()
-                crack.lineWidth = 1.4
-                crack.stroke()
+                faces.lineWidth = 1.2
+                faces.stroke()
             }
             ctx.restoreGState()
             if let dot {
