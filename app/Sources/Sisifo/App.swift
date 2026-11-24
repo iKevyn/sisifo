@@ -296,16 +296,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         animTimer?.invalidate()
         guard !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion, let b = item.button else { return }
         animStart = Date()
-        let dur = 0.9
+        let dur = 1.5
         animTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60, repeats: true) { [weak self] t in
             Task { @MainActor in
                 guard let self else { t.invalidate(); return }
                 let el = Date().timeIntervalSince(self.animStart)
                 if el >= dur { t.invalidate(); self.animTimer = nil; self.updateIcon(); return }
-                let forca = 1 - el / dur
+                // balanço de pêndulo apoiado na base: tomba ~16° pra cada lado e vai parando
+                let forca = pow(1 - el / dur, 1.3)
                 var pose = Daemon.Pose()
-                pose.rot = CGFloat(sin(el * 2 * .pi * 9) * 16 * forca)
-                pose.dy = CGFloat(-abs(sin(el * 2 * .pi * 4.5)) * 1.2 * forca)
+                pose.tilt = CGFloat(sin(el * 2 * .pi * 2.4) * 16 * forca)
+                pose.sx = 0.9; pose.sy = 0.9
                 b.image = Self.bake(Daemon.image(filled: true, size: 22, pose: pose), appearance: b.effectiveAppearance)
             }
         }

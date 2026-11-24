@@ -6,6 +6,8 @@ enum Daemon {
     /// pose da animação (unidades do SVG 24x24)
     struct Pose {
         var dy: CGFloat = 0, sx: CGFloat = 1, sy: CGFloat = 1, rot: CGFloat = 0, horns: CGFloat = 0
+        /// balanço apoiado na base (graus): a pedra tomba pra um lado e pro outro
+        var tilt: CGFloat = 0
         /// carinha: blink 0 aberto…1 fechado, look = olhar pro lado (unidades), grin = tamanho do sorriso
         var blink: CGFloat = 0, look: CGFloat = 0, grin: CGFloat = 1
     }
@@ -19,6 +21,7 @@ enum Daemon {
             ctx.saveGState()
             // pulo + amasso a partir da base, giro pelo centro do balão
             ctx.translateBy(x: 11.5, y: 21.6 + pose.dy)
+            ctx.rotate(by: pose.tilt * .pi / 180)
             ctx.scaleBy(x: pose.sx, y: pose.sy)
             ctx.translateBy(x: 0, y: -8.2)
             ctx.rotate(by: pose.rot * .pi / 180)

@@ -86,6 +86,14 @@ enum PreviewRender {
             if l == .hoje { jm.sel = s.feed.first?.id }
             saveWin(JanelaView(store: s, m: jm).frame(width: 1120, height: 680), "\(dir)/lay-\(nome)-win.png")
         }
+        // balanço da pedra (chegou demanda): quadros de -16° a 16°
+        save(HStack(spacing: 6) {
+            ForEach([-16.0, -10, -4, 0, 6, 12, 16, 8], id: \.self) { g in
+                Image(nsImage: { var p = Daemon.Pose(); p.tilt = CGFloat(g); p.sx = 0.9; p.sy = 0.9
+                    return Daemon.image(filled: true, size: 66, color: .black, template: false, pose: p) }())
+                    .frame(width: 66, height: 66).background(Color.gray.opacity(0.12))
+            }
+        }.padding(10), "\(dir)/balanco.png")
         // redimensionar: a janela Hoje em vários tamanhos, com e sem detalhe aberto
         s.layout = .hoje
         for (w, h) in [(720, 500), (860, 560), (1000, 620), (1120, 680), (1300, 760), (1600, 900), (1920, 1080)] {
