@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Sísifo · ícone facetado</title>
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  body { font: 15px/1.4 -apple-system, system-ui, sans-serif; background: #E9EBEE; color: #1d1d1f; padding: 48px; }
+  h1 { font: 700 34px/1.1 -apple-system, system-ui; letter-spacing: -.02em; }
+  p.sub { margin-top: 8px; color: #6e6e73; }
+  .grade { margin-top: 36px; display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 28px; }
+  .item { background: #fff; border-radius: 28px; padding: 24px 22px 22px; display: flex; flex-direction: column; align-items: center; gap: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.06); }
+  .tile { width: 180px; height: 180px; border-radius: 41px; overflow: hidden; box-shadow: 0 0 0 .5px rgba(0,0,0,.12), 0 14px 30px rgba(0,0,0,.18); }
+  .tile svg { width: 100%; height: 100%; display: block; }
+  .nome { font-weight: 700; font-size: 16px; }
+  .desc { color: #6e6e73; font-size: 13px; text-align: center; margin-top: -8px; }
+  .num { font: 600 12px/1 ui-monospace, monospace; color: #8e8e93; }
+  .lbl { margin-top: 40px; font-weight: 700; color: #6e6e73; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; }
+  .dock { margin-top: 14px; display: inline-flex; gap: 14px; padding: 12px 16px; border-radius: 26px; background: rgba(255,255,255,.6); box-shadow: 0 10px 30px rgba(0,0,0,.12); }
+  .dock .tile { width: 64px; height: 64px; border-radius: 15px; }
+  .escuro { background: #1d1d1f; }
+</style>
+</head>
+<body>
+<h1>Sísifo · pedra facetada</h1>
+<p class="sub">Na pegada da tua referência: pedra lapidada em faces, luz vindo de cima à direita. Ícone ocupando o quadrado todo, como o macOS 26 pede.</p>
+<div class="grade" id="g"></div>
+<div class="lbl">No Dock claro</div><div class="dock" id="d1"></div>
+<div class="lbl">No Dock escuro</div><div class="dock escuro" id="d2"></div>
+
+<script>
+// pedra base da referência (faces). Cada variante troca fundo e paleta das faces.
+const faces = (c) => `
+  <path d="M38 148 C30 122 38 98 52 82 L66 62 C72 52 86 44 100 40 L126 30 C134 27 140 30 144 36 L174 86 C180 96 182 108 180 120 L184 150 C186 168 178 182 164 188 L124 200 C104 206 84 206 66 200 L56 196 C46 188 42 168 38 148 Z" fill="${c.base}"/>
+  <path d="M120 42 L144 36 L174 86 C178 94 176 100 168 100 L156 98 C148 98 142 108 136 118 L128 124 C120 120 110 104 100 88 L100 62 C104 52 110 46 120 42 Z" fill="${c.luz}"/>
+  <path d="M60 90 L100 78 C108 90 112 104 108 118 L100 150 L86 172 C76 158 66 144 60 128 L56 104 Z" fill="${c.sombra}"/>
+  <path d="M116 152 C130 146 144 140 160 136 L182 132 L182 154 C182 168 176 178 164 182 L140 188 C132 176 124 164 116 152 Z" fill="${c.luz2}"/>
+  <path d="M56 160 C62 176 72 188 86 194 L108 198 L104 178 L86 172 C76 168 64 164 56 160 Z" fill="${c.fundo2}"/>
+  <path d="M100 40 L126 30 C120 36 112 44 102 48 L78 60 L66 62 C72 52 86 44 100 40 Z" fill="${c.topo}"/>`;
+
+const V = [
+  ['Referência', 'A pedra da tua imagem, em tons de granito com luz bege.', '#EDE8E2',
+   { base:'#8F8782', luz:'#BDB0A3', sombra:'#5F6A70', luz2:'#C9B7A6', fundo2:'#6B7378', topo:'#55616A' }],
+  ['Obsidiana', 'Vidro vulcânico roxo, bem na pegada do Obsidian.', '#1E1A2B',
+   { base:'#4B3A78', luz:'#A58BEA', sombra:'#2A2047', luz2:'#7F66D0', fundo2:'#35295C', topo:'#6E58BE' }],
+  ['Obsidiana clara', 'Mesma obsidiana num fundo claro, lê melhor no Dock claro.', '#F1EEF8',
+   { base:'#5A4790', luz:'#B49CF2', sombra:'#2F2452', luz2:'#8B72DC', fundo2:'#3F3170', topo:'#7A64C8' }],
+  ['Pedra de morro', 'Cinza azulado de rocha, fundo verde do app.', '#DDEFE3',
+   { base:'#7D868B', luz:'#AEB6BA', sombra:'#4D575D', luz2:'#9AA3A8', fundo2:'#5C666C', topo:'#47525A' }],
+  ['Geodo', 'Pedra comum por fora com um cristal verde aparecendo na face.', '#E9ECEA',
+   { base:'#837B76', luz:'#5DBB82', sombra:'#5A6468', luz2:'#86D9A6', fundo2:'#655F5C', topo:'#4F5A60' }],
+  ['Basalto', 'Quase preta, faces bem marcadas. Séria e elegante.', '#ECEAE7',
+   { base:'#3E3B3A', luz:'#77716C', sombra:'#22201F', luz2:'#5E5955', fundo2:'#2C2A29', topo:'#1A1918' }],
+  ['Arenito', 'Tom quente de pedra do deserto.', '#F6EEE4',
+   { base:'#B0896A', luz:'#DDBC97', sombra:'#7D5C45', luz2:'#E8C9A4', fundo2:'#8F6A50', topo:'#6E5140' }],
+  ['Granito noturno', 'A referência no escuro, com luz coral do pôr do sol.', '#1F2328',
+   { base:'#6F6A68', luz:'#E0A07E', sombra:'#3C434A', luz2:'#C98A6C', fundo2:'#4A5056', topo:'#343B42' }],
+];
+const svg = (fundo, c, s=220) => `<svg viewBox="0 0 220 220"><rect width="220" height="220" fill="${fundo}"/><g transform="translate(-2 -4) scale(1.02)" filter="url(#sh)">${faces(c)}</g>
+  <defs><filter id="sh" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="6" stdDeviation="6" flood-opacity=".25"/></filter></defs></svg>`;
+const g = document.getElementById('g');
+V.forEach(([n, d, fundo, c], i) => {
+  g.insertAdjacentHTML('beforeend', `<div class="item"><span class="num">${String(i+1).padStart(2,'0')}</span><div class="tile">${svg(fundo, c)}</div><div class="nome">${n}</div><div class="desc">${d}</div></div>`);
+  for (const id of ['d1','d2']) document.getElementById(id).insertAdjacentHTML('beforeend', `<div class="tile" title="${n}">${svg(fundo, c)}</div>`);
+});
+</script>
+</body>
+</html>

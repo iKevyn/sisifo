@@ -292,24 +292,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         WakeSound.play()
         NSApp.requestUserAttention(.informationalRequest)
         updateIcon()
+        // a pedra chacoalha na barra de menus (~0,9 s), sem tirar os números
         animTimer?.invalidate()
-        if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
-            // sem movimento: só mostra a cápsula parada por uns segundos
-            item.button?.title = ""
-            item.button?.image = WakeAnim.frame(t: WakeAnim.bubbleIn + 0.5, text: text)
-            animTimer = Timer.scheduledTimer(withTimeInterval: 4, repeats: false) { [weak self] _ in
-                Task { @MainActor in self?.animTimer = nil; self?.updateIcon() }
-            }
-            return
-        }
+        guard !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion, let b = item.button else { return }
         animStart = Date()
-        item.button?.title = ""
+        let dur = 0.9
         animTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60, repeats: true) { [weak self] t in
             Task { @MainActor in
                 guard let self else { t.invalidate(); return }
                 let el = Date().timeIntervalSince(self.animStart)
-                if el >= WakeAnim.total { t.invalidate(); self.animTimer = nil; self.updateIcon(); return }
-                self.item.button?.image = WakeAnim.frame(t: el, text: text)
+                if el >= dur { t.invalidate(); self.animTimer = nil; self.updateIcon(); return }
+                let forca = 1 - el / dur
+                var pose = Daemon.Pose()
+                pose.rot = CGFloat(sin(el * 2 * .pi * 9) * 16 * forca)
+                pose.dy = CGFloat(-abs(sin(el * 2 * .pi * 4.5)) * 1.2 * forca)
+                b.image = Self.bake(Daemon.image(filled: true, size: 22, pose: pose), appearance: b.effectiveAppearance)
             }
         }
     }
