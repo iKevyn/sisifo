@@ -84,7 +84,7 @@ final class JanelaController: NSObject, NSWindowDelegate {
         w.isReleasedWhenClosed = false
         w.titlebarAppearsTransparent = true
         w.toolbarStyle = .unified
-        w.minSize = NSSize(width: 780, height: 460)
+        w.minSize = NSSize(width: 720, height: 500)
         w.contentViewController = NSHostingController(rootView: JanelaView(store: store, m: model))
         w.delegate = self
         window = w
@@ -100,6 +100,8 @@ final class JanelaController: NSObject, NSWindowDelegate {
 // MARK: - view
 
 final class JanelaModel: ObservableObject {
+    /// janela estreita no layout Hoje: primeira raia visível (as outras viram abinhas)
+    @Published var raiaInicio = 0
     @Published var tema = UserDefaults.standard.string(forKey: "janelaTema") ?? "auto" {
         didSet { UserDefaults.standard.set(tema, forKey: "janelaTema"); onTema?() }
     }

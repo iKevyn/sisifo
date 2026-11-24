@@ -852,89 +852,127 @@ struct JanelaHoje: View {
     @ObservedObject var store: Store
     @ObservedObject var zp: ChatStore
     @ObservedObject var m: JanelaModel
+
+    struct RaiaInfo: Identifiable { let titulo: String; let cor: Color; let itens: [ItemFeed]; var mostraFazendo = true; var id: String { titulo } }
+
+    // medidas (pt): raia confortável entre 300 e 460, detalhe entre 380 e 460
+    static let raiaMin: CGFloat = 300, raiaMax: CGFloat = 460, gap: CGFloat = 12
+
     var body: some View {
         let todos = store.feed.filter { bateBusca($0, m.busca) }
         let sel = todos.first { $0.id == m.sel }
         // conversa que segue aberta depois de eu responder (o item saiu das não lidas)
         let chatJid: String? = m.sel.flatMap { $0.hasPrefix("c:") ? String($0.dropFirst(2)) : nil }
-        VStack(spacing: 0) {
-            TopoJanela(store: store, m: m) {
-                Text("Hoje").font(.system(size: 17, weight: .bold))
-                    .help(Date().formatted(Date.FormatStyle(locale: Locale(identifier: "pt_BR")).weekday(.wide).day().month(.wide)))
-                ResumoDia(store: store, m: m)
-            } centro: {
-                FiltroSeg(store: zp).frame(width: 270)
-            }
-            AvisoPonte(store: store).padding(.horizontal, 14)
-            HStack(alignment: .top, spacing: 12) {
-                Raia(store: store, m: m, titulo: "Responder", cor: .blue, itens: todos.filter { $0.tipo == .responder || $0.tipo == .marcacao })
-                Raia(store: store, m: m, titulo: "Fazer", cor: Mood.warm, itens: todos.filter { $0.tipo == .demanda && $0.demand?.doing == nil })
-                let fazendo = todos.filter { $0.tipo == .demanda && $0.demand?.doing != nil }
-                if sel == nil && chatJid == nil || !fazendo.isEmpty {
-                    Raia(store: store, m: m, titulo: "Fazendo", cor: .indigo, itens: fazendo, mostraFazendo: false)
-                        .transition(.opacity)
+        let detalhe = sel != nil || chatJid != nil
+        var raias = [
+            RaiaInfo(titulo: "Responder", cor: .blue, itens: todos.filter { $0.tipo == .responder || $0.tipo == .marcacao }),
+            RaiaInfo(titulo: "Fazer", cor: Mood.warm, itens: todos.filter { $0.tipo == .demanda && $0.demand?.doing == nil }),
+        ]
+        let fazendo = todos.filter { $0.tipo == .demanda && $0.demand?.doing != nil }
+        if !fazendo.isEmpty { raias.append(RaiaInfo(titulo: "Fazendo", cor: .indigo, itens: fazendo, mostraFazendo: false)) }
+        let parados = todos.filter { $0.tipo == .aguardando }
+        if !parados.isEmpty { raias.append(RaiaInfo(titulo: "Aguardando", cor: .teal, itens: parados)) }
+        raias.append(RaiaInfo(titulo: "Só saber", cor: .secondary, itens: todos.filter { $0.tipo == .saber }))
+
+        return GeometryReader { geo in
+            let W = geo.size.width
+            let largura = W - 28
+            let detW: CGFloat = detalhe ? min(460, max(380, largura * 0.42)) : 0
+            let livre = largura - (detalhe ? detW + Self.gap : 0)
+            // quantas raias cabem sem espremer
+            let cabem = max(0, Int((livre + Self.gap) / (Self.raiaMin + Self.gap)))
+            let soDetalhe = detalhe && cabem == 0
+            let mostrar = max(1, min(raias.count, cabem))
+            let abas = !soDetalhe && mostrar < raias.count
+            let inicio = min(m.raiaInicio, raias.count - mostrar)
+            let visiveis = soDetalhe ? [] : Array(raias[inicio..<(inicio + mostrar)])
+            // raias ocupam toda a largura (sem faixa vazia nas telas grandes)
+            let raiaW = visiveis.isEmpty ? 0 : (livre - Self.gap * CGFloat(visiveis.count - 1)) / CGFloat(visiveis.count)
+            let total = visiveis.isEmpty ? detW : raiaW * CGFloat(visiveis.count) + Self.gap * CGFloat(visiveis.count - 1) + (detalhe ? detW + Self.gap : 0)
+
+            VStack(spacing: 0) {
+                TopoJanela(store: store, m: m) {
+                    Text("Hoje").font(.system(size: 17, weight: .bold))
+                        .help(Date().formatted(Date.FormatStyle(locale: Locale(identifier: Idioma.ingles ? "en_US" : "pt_BR")).weekday(.wide).day().month(.wide)))
+                    if W >= 1060 { ResumoDia(store: store, m: m) }
+                } centro: {
+                    FiltroSeg(store: zp).frame(width: W < 980 ? 250 : 270)
                 }
-                if sel == nil && chatJid == nil {
-                    let parados = todos.filter { $0.tipo == .aguardando }
-                    if !parados.isEmpty {
-                        Raia(store: store, m: m, titulo: "Aguardando", cor: .teal, itens: parados)
+                AvisoPonte(store: store).padding(.horizontal, 14)
+                if abas {
+                    // janela estreita: abinhas das raias, as visíveis ficam acesas
+                    HStack(spacing: 6) {
+                        ForEach(Array(raias.enumerated()), id: \.element.id) { k, r in
+                            let acesa = k >= inicio && k < inicio + mostrar
+                            Button { withAnimation(.snappy(duration: 0.25)) { m.raiaInicio = min(k, raias.count - mostrar) } } label: {
+                                HStack(spacing: 5) {
+                                    Text(L(r.titulo)).font(.system(size: 12, weight: .semibold))
+                                    Text("\(r.itens.count)").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
+                                }
+                                .padding(.horizontal, 11).frame(height: 26)
+                                .foregroundStyle(acesa ? r.cor : .secondary)
+                                .background(Capsule().fill(acesa ? r.cor.opacity(0.14) : Color.primary.opacity(0.05)))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, 14).padding(.bottom, 8)
+                }
+                HStack(alignment: .top, spacing: Self.gap) {
+                    ForEach(visiveis) { r in
+                        Raia(store: store, m: m, titulo: r.titulo, cor: r.cor, itens: r.itens, mostraFazendo: r.mostraFazendo)
+                            .frame(width: raiaW)
                             .transition(.opacity)
                     }
-                    Raia(store: store, m: m, titulo: "Só saber", cor: .secondary, itens: todos.filter { $0.tipo == .saber })
-                        .transition(.opacity)
-                }
-                if let jid = chatJid {
-                    VStack(spacing: 0) {
-                        HStack {
+                    if let jid = chatJid {
+                        painel(largura: soDetalhe ? largura : detW) {
                             Pill(text: "Conversa", tint: .blue)
-                            Spacer()
-                            Button { withAnimation(.snappy) { m.sel = nil; store.segurar.remove(jid) } } label: {
-                                Image(systemName: "xmark").font(.system(size: 11, weight: .bold)).foregroundStyle(.secondary)
-                                    .frame(width: 28, height: 28).background(Circle().fill(Color.primary.opacity(0.08)))
-                            }
-                            .buttonStyle(.plain).keyboardShortcut(.escape, modifiers: []).help("Fechar (esc)")
+                        } fechar: { m.sel = nil; store.segurar.remove(jid) } conteudo: {
+                            ChatDoItem(store: store, zp: zp, jid: jid).id("c:" + jid)
                         }
-                        .padding(.leading, 28).padding(.trailing, 14).padding(.top, 14)
-                        ChatDoItem(store: store, zp: zp, jid: jid).id("c:" + jid)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     }
-                    .frame(width: 460)
-                    .frame(maxHeight: .infinity)
-                    .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Color(nsColor: .windowBackgroundColor)))
-                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(Color.primary.opacity(0.08)))
-                    .shadow(color: .black.opacity(0.12), radius: 14, y: 4)
-                    .transition(.move(edge: .trailing).combined(with: .opacity))
-                }
-                if let i = sel {
-                    VStack(spacing: 0) {
-                        HStack {
+                    if let i = sel {
+                        painel(largura: soDetalhe ? largura : detW) {
                             Pill(text: i.tipo.rotulo, tint: i.tipo.cor)
-                            Spacer()
-                            Button { withAnimation(.snappy) { m.sel = nil } } label: {
-                                Image(systemName: "xmark").font(.system(size: 11, weight: .bold)).foregroundStyle(.secondary)
-                                    .frame(width: 28, height: 28).background(Circle().fill(Color.primary.opacity(0.08)))
-                            }
-                            .buttonStyle(.plain).keyboardShortcut(.escape, modifiers: []).help("Fechar (esc)")
+                        } fechar: { m.sel = nil } conteudo: {
+                            DetalheItem(store: store, i: i).id(i.id)
                         }
-                        .padding(.leading, 28).padding(.trailing, 14).padding(.top, 14)
-                        DetalheItem(store: store, i: i).id(i.id)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     }
-                    .frame(width: 460)
-                    .frame(maxHeight: .infinity)
-                    .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Color(nsColor: .windowBackgroundColor)))
-                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(Color.primary.opacity(0.08)))
-                    .shadow(color: .black.opacity(0.12), radius: 14, y: 4)
-                    .transition(.move(edge: .trailing).combined(with: .opacity))
                 }
+                .frame(width: min(total, largura))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.horizontal, 14).padding(.bottom, 14)
+                .animation(.snappy(duration: 0.28), value: m.sel)
             }
-            .padding(.horizontal, 14).padding(.bottom, 14)
-            .animation(.snappy(duration: 0.28), value: m.sel)
         }
         .ignoresSafeArea(.container, edges: .top)
         .onChange(of: todos.map(\.id)) { _, ids in m.sel = manterConversa(m.sel, ids: ids, store: store, senao: nil) }
+    }
+
+    /// painel de detalhe (item ou conversa) à direita
+    func painel<Cab: View, Con: View>(largura: CGFloat, @ViewBuilder cabecalho: () -> Cab, fechar: @escaping () -> Void,
+                                      @ViewBuilder conteudo: () -> Con) -> some View {
+        VStack(spacing: 0) {
+            HStack {
+                cabecalho()
+                Spacer()
+                Button { withAnimation(.snappy) { fechar() } } label: {
+                    Image(systemName: "xmark").font(.system(size: 11, weight: .bold)).foregroundStyle(.secondary)
+                        .frame(width: 28, height: 28).background(Circle().fill(Color.primary.opacity(0.08)))
+                }
+                .buttonStyle(.plain).keyboardShortcut(.escape, modifiers: []).help("Fechar (esc)")
+            }
+            .padding(.leading, 28).padding(.trailing, 14).padding(.top, 14)
+            conteudo().frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }
+        .frame(width: largura)
+        .frame(maxHeight: .infinity)
+        .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Color(nsColor: .windowBackgroundColor)))
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(Color.primary.opacity(0.08)))
+        .shadow(color: .black.opacity(0.12), radius: 14, y: 4)
+        .transition(.move(edge: .trailing).combined(with: .opacity))
     }
 }
 

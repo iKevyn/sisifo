@@ -86,6 +86,14 @@ enum PreviewRender {
             if l == .hoje { jm.sel = s.feed.first?.id }
             saveWin(JanelaView(store: s, m: jm).frame(width: 1120, height: 680), "\(dir)/lay-\(nome)-win.png")
         }
+        // redimensionar: a janela Hoje em vários tamanhos, com e sem detalhe aberto
+        s.layout = .hoje
+        for (w, h) in [(720, 500), (860, 560), (1000, 620), (1120, 680), (1300, 760), (1600, 900), (1920, 1080)] {
+            jm.sel = nil
+            saveWin(JanelaView(store: s, m: jm).frame(width: CGFloat(w), height: CGFloat(h)), "\(dir)/tam-\(w)x\(h).png")
+            jm.sel = s.feed.first?.id
+            saveWin(JanelaView(store: s, m: jm).frame(width: CGFloat(w), height: CGFloat(h)), "\(dir)/tam-\(w)x\(h)-det.png")
+        }
         s.zp.filtro = .trabalho
         s.layout = .caixa
         saveWin(PopoverView(store: s), "\(dir)/lay-caixa-trabalho.png")

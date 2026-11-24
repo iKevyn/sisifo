@@ -1299,7 +1299,7 @@ struct FiltroSeg: View {
                     Text(f.nome)
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(sel ? Color.primary : Color.secondary)
-                        .padding(.horizontal, 12).frame(height: 26)
+                        .padding(.horizontal, 8).frame(height: 26).lineLimit(1).fixedSize()
                         .frame(maxWidth: .infinity)
                         .background(Capsule().fill(sel ? Color(nsColor: .controlBackgroundColor) : Color.clear)
                             .shadow(color: .black.opacity(sel ? 0.15 : 0), radius: 2, y: 1))
