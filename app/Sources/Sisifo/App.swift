@@ -1,3 +1,4 @@
+import ServiceManagement
 import AppKit
 import SwiftUI
 import Combine
@@ -395,19 +396,75 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
 
     /// Clique direito (ou ⌃clique) no ícone = menu com Sair; clique normal = popover.
+    /// clique na pedra da barra de menus: menu de Mac com os números e os ajustes (sem painel)
     @objc func statusClicked() {
-        let e = NSApp.currentEvent
-        guard e?.type == .rightMouseUp || e?.modifierFlags.contains(.control) == true else {
-            togglePopover(); return
-        }
-        if popover.isShown { popover.performClose(nil) }
+        unseen = false; updateIcon()
         let menu = NSMenu()
-        let quit = NSMenuItem(title: L("Sair do Sísifo"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
-        quit.target = NSApp
-        menu.addItem(quit)
-        item.menu = menu
-        item.button?.performClick(nil)
-        item.menu = nil
+        func item(_ t: String, _ sel: Selector?, _ key: String = "", alvo: AnyObject? = nil, obj: Any? = nil, on: Bool = false) -> NSMenuItem {
+            let i = NSMenuItem(title: t, action: sel, keyEquivalent: key)
+            i.target = alvo ?? self; i.representedObject = obj; i.state = on ? .on : .off
+            return i
+        }
+        let abrir = item(L("Abrir o Sísifo"), #selector(abrirJanelaMenu), "z")
+        abrir.keyEquivalentModifierMask = [.option]
+        menu.addItem(abrir)
+        menu.addItem(.separator())
+        // números (clicar abre a janela)
+        let en = Idioma.ingles
+        let dem = store.mine.count, rp = store.toReply.count, at = store.mentionsUnseen
+        let linhas: [(String, String)] = [
+            ("tray.full", dem == 0 ? (en ? "No open tasks" : "Nenhuma demanda aberta") : (en ? "\(dem) open tasks" : "\(dem) demandas abertas")),
+            ("bubble.left", rp == 0 ? (en ? "Nobody waiting for you" : "Ninguém esperando tua resposta") : (en ? "\(rp) waiting for your reply" : "\(rp) esperando tua resposta")),
+            ("at", at == 0 ? (en ? "No new mentions" : "Nenhuma marcação nova") : (en ? "\(at) new mentions" : "\(at) marcações novas")),
+        ]
+        for (icone, texto) in linhas {
+            let i = item(texto, #selector(abrirJanelaMenu))
+            i.image = NSImage(systemSymbolName: icone, accessibilityDescription: nil)
+            menu.addItem(i)
+        }
+        menu.addItem(.separator())
+        // som
+        let somItem = NSMenuItem(title: L("Som de demanda nova"), action: nil, keyEquivalent: "")
+        let som = NSMenu()
+        for o in WakeSound.options { som.addItem(item(L(o.name), #selector(escolherSom(_:)), obj: o.id, on: WakeSound.current == o.id)) }
+        som.addItem(.separator())
+        som.addItem(item(L("Sem som"), #selector(escolherSom(_:)), obj: "off", on: WakeSound.current == "off"))
+        somItem.submenu = som
+        menu.addItem(somItem)
+        // aparência
+        let apItem = NSMenuItem(title: L("Aparência"), action: nil, keyEquivalent: "")
+        let ap = NSMenu()
+        for (cod, nome) in [("auto", "Automático"), ("claro", "Claro"), ("escuro", "Escuro")] {
+            ap.addItem(item(L(nome), #selector(escolherTema(_:)), obj: cod, on: janela.model.tema == cod))
+        }
+        apItem.submenu = ap
+        menu.addItem(apItem)
+        // idioma
+        let idItem = NSMenuItem(title: L("Idioma"), action: nil, keyEquivalent: "")
+        let id = NSMenu()
+        for (cod, nome) in [("pt", "Português"), ("en", "English")] { id.addItem(item(nome, #selector(trocarIdioma(_:)), obj: cod, on: Idioma.atual == cod)) }
+        idItem.submenu = id
+        menu.addItem(idItem)
+        menu.addItem(item(L("Abrir quando ligar o Mac"), #selector(alternarLogin), on: SMAppService.mainApp.status == .enabled))
+        menu.addItem(item(atualizacao.menuItem?.title ?? L("Procurar atualização"), #selector(Atualizacao.clicouMenu), alvo: atualizacao))
+        menu.addItem(.separator())
+        let sair = NSMenuItem(title: L("Sair do Sísifo"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        sair.target = NSApp
+        menu.addItem(sair)
+        self.item.menu = menu
+        self.item.button?.performClick(nil)
+        self.item.menu = nil
+    }
+    @objc func escolherSom(_ s: NSMenuItem) {
+        guard let v = s.representedObject as? String else { return }
+        UserDefaults.standard.set(v, forKey: "sound"); WakeSound.play(v)
+    }
+    @objc func escolherTema(_ s: NSMenuItem) {
+        guard let v = s.representedObject as? String else { return }
+        janela.model.tema = v
+    }
+    @objc func alternarLogin() {
+        if SMAppService.mainApp.status == .enabled { try? SMAppService.mainApp.unregister() } else { try? SMAppService.mainApp.register() }
     }
 
     @objc func togglePopover() {
