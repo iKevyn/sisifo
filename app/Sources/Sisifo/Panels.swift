@@ -170,8 +170,8 @@ struct ClaudeSheet: View {
                 HStack(spacing: 10) {
                     ClientAvatar(url: store.avatarURL(d.jid), name: d.client, isGroup: d.isGroup, size: 34)
                     VStack(alignment: .leading, spacing: 1) {
-                        Text(model.title).font(.cute(14, .bold))
-                        Text(model.subtitle).font(.cute(11.5)).foregroundStyle(.secondary).lineLimit(1)
+                        Text(L(model.title)).font(.cute(14, .bold))
+                        Text(L(model.subtitle)).font(.cute(11.5)).foregroundStyle(.secondary).lineLimit(1)
                     }
                     Spacer()
                 }
@@ -267,7 +267,7 @@ final class ClaudeController {
         try? script.write(to: cmd, atomically: true, encoding: .utf8)
         try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: cmd.path)
         NSWorkspace.shared.open(cmd)
-        toast.show("Abrindo o Claude Code no Terminal")
+        toast.show(L("Abrindo o Claude Code no Terminal"))
     }
 }
 
@@ -281,7 +281,7 @@ final class Toast {
     func show(_ text: String) {
         let view = HStack(spacing: 8) {
             Image(systemName: "checkmark.circle.fill").foregroundStyle(Mood.calm)
-            Text(text).font(.cute(13, .semibold))
+            Text(L(text)).font(.cute(13, .semibold))
         }
         .padding(.horizontal, 16).frame(height: 40)
         .background(.regularMaterial, in: Capsule())

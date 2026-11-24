@@ -1,57 +1,65 @@
 <p align="center"><img src="assets/icon-1024.png" width="140" alt="Sísifo"></p>
 
+<p align="center"><b>English</b> · <a href="README.pt-BR.md">Português</a></p>
+
 <h1 align="center">Sísifo</h1>
 
-<p align="center">Teus grupos de trabalho do WhatsApp, lidos e resumidos. O que pedem pra ti vira demanda, o resto tu só fica sabendo.</p>
+<p align="center">Your WhatsApp work groups, read and summarized. What people ask of you becomes a task; everything else you just get the gist of.</p>
 
 ---
 
-O Sísifo é um app de Mac que lê o teu WhatsApp e usa o Claude (da tua própria assinatura, pelo Claude Code) pra:
+Sísifo is a Mac app that reads your WhatsApp and uses Claude (your own subscription, through Claude Code) to:
 
-- **Tirar demandas** das conversas: quem pediu, o quê, pra quando, se já foi respondida por alguém da equipe.
-- **Resumir as não lidas** em uma linha e sugerir resposta no teu jeito de escrever.
-- **Separar Trabalho de Privado**: grupos onde a tua equipe fala viram Trabalho.
-- **Responder sem abrir o WhatsApp**, com chat de verdade dentro do app.
-- **Mandar uma demanda pro Claude Code** com um clique, já com o contexto da conversa.
+- **Pull tasks out of conversations**: who asked, what, by when, and whether someone on your team already handled it.
+- **Summarize unread chats** in one line and suggest a reply in your own writing style.
+- **Split Work from Personal**: groups where your team talks become Work.
+- **Reply without opening WhatsApp**, with a real chat inside the app.
+- **Send a task to Claude Code** in one click, with the conversation context included.
 
-Tudo roda no teu Mac. As mensagens ficam em `~/Library/Application Support/Sisifo` e só vão pro Claude na hora de resumir.
+Everything runs on your Mac. Messages live in `~/Library/Application Support/Sisifo` and only go to Claude when they are being summarized.
 
-## Instalar
+The app is available in **English** and **Portuguese** (choose on the first screen or later in the app menu).
 
-1. Baixa o `Sisifo.dmg` na página de [Releases](../../releases) e arrasta o app pra Aplicativos.
-2. Na primeira vez, clica com o botão direito no app e escolhe **Abrir** (o app ainda não é assinado pela Apple).
-3. Segue as telas: conecta o Claude, escaneia o QR do WhatsApp, marca tua equipe.
+## Install
 
-**Precisa de:** macOS 26 num Mac com Apple Silicon e o [Claude Code](https://claude.com/claude-code) instalado.
+1. Download `Sisifo.dmg` from [Releases](../../releases) and drag the app to Applications.
+2. The first time, right-click the app and choose **Open** (it is not signed by Apple yet).
+3. Follow the setup: connect Claude, scan the WhatsApp QR code, pick your team.
 
-## Aviso sobre o WhatsApp
+**Requires:** macOS 26 on an Apple Silicon Mac, and [Claude Code](https://claude.com/claude-code) installed.
 
-A conexão usa o [Baileys](https://github.com/WhiskeySockets/Baileys), que funciona como o WhatsApp Web mas **não é oficial**. O WhatsApp pode limitar ou banir contas que usam apps assim. Usa por tua conta e risco, de preferência com moderação.
+## Updates
 
-## Como funciona
+Sísifo checks GitHub Releases once a day. When there is a new version it shows **Update available** in the app menu; one click downloads it, replaces the app and reopens it. Your data stays where it is.
+
+## A note about WhatsApp
+
+The connection uses [Baileys](https://github.com/WhiskeySockets/Baileys), which works like WhatsApp Web but **is not official**. WhatsApp may limit or ban accounts that use apps like this. Use it at your own risk, and preferably in moderation.
+
+## How it works
 
 ```
 Sisifo.app
-├── app Swift (janela, barra de menus, primeira abertura)
-├── node embutido
-├── bridge/          ponte do WhatsApp (Baileys) → SQLite local, 127.0.0.1:47851
-├── server/          demandas e não lidas, chama `claude -p`, 127.0.0.1:47852
-└── server-privado/  conversas e envio, 127.0.0.1:47853
+├── Swift app (window, menu bar, first-run setup, updater)
+├── bundled Node
+├── bridge/          WhatsApp bridge (Baileys) → local SQLite, 127.0.0.1:47851
+├── server/          tasks and unread summaries, calls `claude -p`, 127.0.0.1:47852
+└── server-privado/  chats and sending, 127.0.0.1:47853
 ```
 
-Nada escuta fora do `127.0.0.1`. A ponte pede um token salvo só no teu Mac.
+Nothing listens outside `127.0.0.1`. The bridge requires a token stored only on your Mac.
 
-## Montar do código
+## Build from source
 
 ```sh
-git clone <este repositório> && cd sisifo
+git clone https://github.com/iKevyn/sisifo && cd sisifo
 ./build.sh            # build/Sisifo.app
-./build.sh --install  # copia pra /Applications
+./build.sh --install  # copy to /Applications
 ./build.sh --dmg      # build/Sisifo.dmg
 ```
 
-Precisa de Xcode (Swift 6) e Node 22.5+ (o Node é copiado pra dentro do app).
+Requires Xcode (Swift 6) and Node 22.5+ (Node is copied into the app).
 
-## Licença
+## License
 
-MIT. Veja [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).

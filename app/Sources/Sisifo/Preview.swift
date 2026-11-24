@@ -16,10 +16,10 @@ enum PreviewRender {
         let s = Store()
         s.serverUp = true; s.connected = true; s.scanning = 3
         s.open = [
-            dm("a", "Bisyou", "Trocar banner da Black na home", "Celso", 50, due: today),
-            dm("b", "Loja Aurora", "Esconder pop-up VIP pra quem vem do Hub", "Bruno", 190, group: false, urgent: true),
+            dm("a", "Studio Norte", "Trocar banner da Black na home", "Paula", 50, due: today),
+            dm("b", "Loja Aurora", "Esconder pop-up VIP pra quem vem do anúncio", "Bruno", 190, group: false, urgent: true),
             dm("c", "Loja Aurora", "Trocar popup para copy de lançamento", "Bruno", 420),
-            dm("d", "Ultravita", "Liberar checkout Yampi pra teste", "Leo", 12, group: false),
+            dm("d", "Café Grão", "Liberar checkout da loja pra teste", "Lucas", 12, group: false),
         ]
         s.expanded = "a"
         s.tab = .open
@@ -28,17 +28,17 @@ enum PreviewRender {
         saveWin(PopoverView(store: s), "\(dir)/dem-pop.png")
         typealias L = UnreadChat.Line
         s.unread = [
-            UnreadChat(jid: "x@g.us", name: "Projeto - Bisyou", isGroup: true, client: "Bisyou", count: 3, lastTs: now - 900,
-                       summary: "Celso perguntou se o banner novo da Black já pode subir hoje à tarde.", needsReply: true, urgent: false, kind: "pergunta",
+            UnreadChat(jid: "x@g.us", name: "Projeto - Studio Norte", isGroup: true, client: "Studio Norte", count: 3, lastTs: now - 900,
+                       summary: "Paula perguntou se o banner novo da Black já pode subir hoje à tarde.", needsReply: true, urgent: false, kind: "pergunta",
                        suggestion: "Pode sim, subo agora à tarde e te mando o print", pending: false, failed: false, demands: 1,
-                       tail: [L(me: false, who: "Celso", text: "@Ana o banner novo da black ja pode subir?", ts: now - 900)]),
-            UnreadChat(jid: "y@s.whatsapp.net", name: "Leo Ultravita", isGroup: false, client: "Ultravita", count: 1, lastTs: now - 3000,
-                       summary: "Leo mandou o acesso da Yampi e perguntou se tu consegue testar o checkout amanhã.", needsReply: true, urgent: true, kind: "pedido",
+                       tail: [L(me: false, who: "Paula", text: "@Ana o banner novo da black ja pode subir?", ts: now - 900)]),
+            UnreadChat(jid: "y@s.whatsapp.net", name: "Lucas Café Grão", isGroup: false, client: "Café Grão", count: 1, lastTs: now - 3000,
+                       summary: "Lucas mandou o acesso da da loja e perguntou se tu consegue testar o checkout amanhã.", needsReply: true, urgent: true, kind: "pedido",
                        suggestion: "consigo sim, amanha cedo testo e te falo", pending: false, failed: false, demands: 0, tail: []),
             UnreadChat(jid: "z@g.us", name: "Equipe", isGroup: true, client: "Equipe", count: 12, lastTs: now - 400,
                        summary: "Bruno e Diego combinando horário da call de sexta, nada pra ti.", needsReply: false, urgent: false, kind: "papo",
                        suggestion: nil, pending: false, failed: false, demands: 0, tail: []),
-            UnreadChat(jid: "w@g.us", name: "Projeto - Souly", isGroup: true, client: "Souly", count: 2, lastTs: now - 60,
+            UnreadChat(jid: "w@g.us", name: "Projeto - Casa Brisa", isGroup: true, client: "Casa Brisa", count: 2, lastTs: now - 60,
                        summary: "", needsReply: false, urgent: false, kind: "papo", suggestion: nil, pending: true, failed: false, demands: 0, tail: []),
         ]
         s.tab = .zap
@@ -49,13 +49,13 @@ enum PreviewRender {
         // merge: conversa privada de verdade + IA dentro dela
         s.zp.serverUp = true; s.zp.connected = true; s.zp.lastSync = Date(); s.zp.lastDbTs = now - 120
         s.zp.chats = [
-            Chat(jid: "y@s.whatsapp.net", name: "Leo Ultravita", last: "consegue testar o checkout amanhã?", lastTs: now - 3000, unread: 2),
+            Chat(jid: "y@s.whatsapp.net", name: "Lucas Café Grão", last: "consegue testar o checkout amanhã?", lastTs: now - 3000, unread: 2),
             Chat(jid: "t@s.whatsapp.net", name: "Bruno", last: "Tu: subi o banner", lastTs: now - 5000, unread: 0),
             Chat(jid: "j@s.whatsapp.net", name: "Carla", last: "mandei as artes no drive", lastTs: now - 9000, unread: 1),
         ]
         s.zp.messages = [
-            Msg(id: "1", jid: "y@s.whatsapp.net", me: true, ts: now - 7200, type: "conversation", text: "fala leo, ja subi a home nova", caption: "", media: false, transcript: nil),
-            Msg(id: "2", jid: "y@s.whatsapp.net", me: false, ts: now - 3100, type: "conversation", text: "Show! Te mandei o acesso da Yampi no email", caption: "", media: false, transcript: nil),
+            Msg(id: "1", jid: "y@s.whatsapp.net", me: true, ts: now - 7200, type: "conversation", text: "fala lucas, ja subi a home nova", caption: "", media: false, transcript: nil),
+            Msg(id: "2", jid: "y@s.whatsapp.net", me: false, ts: now - 3100, type: "conversation", text: "Show! Te mandei o acesso da da loja no email", caption: "", media: false, transcript: nil),
             Msg(id: "3", jid: "y@s.whatsapp.net", me: false, ts: now - 3000, type: "conversation", text: "consegue testar o checkout amanhã?", caption: "", media: false, transcript: nil),
         ]
         s.zp.selected = "y@s.whatsapp.net"
@@ -111,7 +111,7 @@ enum PreviewRender {
              "\(dir)/dem-idle.png")
         let bubbleTimes: [Double] = [0.3, 1.0, 1.1, 1.2, 1.4, 2.5, WakeAnim.total - 0.25, WakeAnim.total - 0.1]
         save(VStack(alignment: .leading, spacing: 6) { ForEach(bubbleTimes, id: \.self) { t in
-            Image(nsImage: WakeAnim.frame(t: t, text: "Nova demanda de Bisyou")) } }
+            Image(nsImage: WakeAnim.frame(t: t, text: "Nova demanda de Studio Norte")) } }
             .padding(10).scaleEffect(3, anchor: .topLeading).frame(width: 600, height: 560, alignment: .topLeading),
              "\(dir)/dem-bubble.png")
         save(DaemonLogo(size: 80).padding(10), "\(dir)/dem-logo.png")

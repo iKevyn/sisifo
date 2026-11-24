@@ -121,10 +121,11 @@ private func diaTitulo(_ ts: Int) -> String {
 private func atraso(_ date: Date) -> String {
     let s = max(0, Int(Date().timeIntervalSince(date)))
     if s < 10 { return "agora" }
-    if s < 60 { return "há \(s)s" }
-    if s < 3600 { return "há \(s / 60) min" }
-    if s < 86400 { return "há \(s / 3600) h" }
-    return "há \(s / 86400) d"
+    let en = Idioma.ingles
+    if s < 60 { return en ? "\(s)s ago" : "há \(s)s" }
+    if s < 3600 { return en ? "\(s / 60) min ago" : "há \(s / 60) min" }
+    if s < 86400 { return en ? "\(s / 3600) h ago" : "há \(s / 3600) h" }
+    return en ? "\(s / 86400) d ago" : "há \(s / 86400) d"
 }
 
 /// contato sem nome salvo: "5511999998888@s.whatsapp.net" vira "+55 11 99999-8888"
@@ -210,7 +211,7 @@ struct StatusFooter: View {
                 .fill(ok ? Color.green : Color.orange)
                 .frame(width: 7, height: 7)
             VStack(alignment: .leading, spacing: 0) {
-                Text(titulo)
+                Text(L(titulo))
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -512,7 +513,7 @@ struct ChatView: View {
                 ChatAvatar(store: store, jid: chat.jid, name: chat.name, size: compact ? 28 : 32)
                 VStack(alignment: .leading, spacing: 0) {
                     Text(nomeBonito(chat.name)).font(.system(size: compact ? 12.5 : 13.5, weight: .semibold)).lineLimit(1)
-                    Text(subtitulo)
+                    Text(L(subtitulo))
                         .font(.system(size: 10.5))
                         .foregroundStyle(store.presence.typing || store.presence.recording ? Color.accentColor : Color.secondary)
                 }
@@ -617,7 +618,7 @@ struct MessageBubble: View {
             if msg.me { Spacer(minLength: compact ? 40 : 90) }
             VStack(alignment: incoming ? .leading : .trailing, spacing: 3) {
                 if mostraNome, let w = msg.who, !w.isEmpty {
-                    Text(w)
+                    Text(L(w))
                         .font(.system(size: 10.5, weight: .semibold))
                         .foregroundStyle(corNome(w))
                         .padding(.horizontal, 6)
@@ -774,7 +775,7 @@ struct AudioBubble: View {
                 }
             }
             if !text.isEmpty {
-                Text(text)
+                Text(L(text))
                     .font(.system(size: compact ? 11.5 : 12))
                     .lineLimit(4)
                     .textSelection(.enabled)
@@ -815,7 +816,7 @@ struct Composer: View {
             }
 
             if let e = store.erro {
-                Text(e).font(.system(size: 11)).foregroundStyle(.red).lineLimit(2)
+                Text(L(e)).font(.system(size: 11)).foregroundStyle(.red).lineLimit(2)
                     .padding(.horizontal, 10).padding(.vertical, 4)
                     .background(Capsule().fill(Color.red.opacity(0.12)))
                     .onTapGesture { store.erro = nil }
@@ -1055,7 +1056,7 @@ struct QuickReplies: View {
                 HStack(spacing: 6) {
                     ForEach(store.suggestions, id: \.self) { s in
                         Button { Task { await send(s) } } label: {
-                            Text(s)
+                            Text(L(s))
                                 .font(.system(size: 11, weight: .medium))
                                 .lineLimit(1)
                                 .padding(.horizontal, 10).padding(.vertical, 5)
@@ -1162,7 +1163,7 @@ struct SugestaoIA: View {
                 Button { usar(s) } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "sparkles").font(.system(size: 10.5, weight: .semibold)).foregroundStyle(Color.accentColor)
-                        Text(s).font(.system(size: 12, weight: .medium)).lineLimit(2).multilineTextAlignment(.leading)
+                        Text(L(s)).font(.system(size: 12, weight: .medium)).lineLimit(2).multilineTextAlignment(.leading)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .padding(.horizontal, 11).padding(.vertical, 7)
@@ -1278,7 +1279,7 @@ struct SeloPilula: View {
     var body: some View {
         HStack(spacing: 3) {
             if let icone { Image(systemName: icone).font(.system(size: 8.5, weight: .bold)) }
-            Text(texto).font(.system(size: 10, weight: .semibold))
+            Text(L(texto)).font(.system(size: 10, weight: .semibold))
         }
         .foregroundStyle(cor)
         .padding(.horizontal, 7).frame(height: 18)

@@ -172,7 +172,7 @@ struct JanelaView: View {
     func item(_ t: String, _ sym: String, _ n: Int, destaque: Int = 0) -> some View {
         HStack(spacing: 9) {
             Image(systemName: sym).font(.system(size: 13, weight: .medium)).frame(width: 18, alignment: .center)
-            Text(t).font(.cute(13, .medium)).lineLimit(1)
+            Text(L(t)).font(.cute(13, .medium)).lineLimit(1)
             Spacer(minLength: 4)
             if destaque > 0 {
                 Text("\(destaque)").font(.cute(11, .bold)).monospacedDigit().foregroundStyle(.white)
@@ -230,7 +230,7 @@ struct JanelaView: View {
             : ("checkmark.circle.fill", "Tudo em dia", Mood.calm)
         HStack(spacing: 6) {
             Image(systemName: sym).foregroundStyle(cor)
-            Text(txt).foregroundStyle(.secondary)
+            Text(L(txt)).foregroundStyle(.secondary)
             Spacer()
         }
         .font(.cute(11, .medium))
@@ -523,7 +523,7 @@ struct Cabecalho: View {
     var acao: (String, () -> Void)? = nil
     var body: some View {
         HStack(spacing: 5) {
-            Text(texto).font(.cute(11.5, .bold))
+            Text(L(texto)).font(.cute(11.5, .bold))
             Text("\(n)").font(.cute(11, .bold)).monospacedDigit().opacity(0.5)
             Spacer()
             if let (t, f) = acao {
@@ -543,8 +543,8 @@ struct Vazio: View {
     var body: some View {
         VStack(spacing: 8) {
             Image(systemName: sym).font(.system(size: 26, weight: .semibold)).foregroundStyle(Mood.calm)
-            Text(txt).font(.cute(13.5, .semibold))
-            Text(sub).font(.cute(11.5)).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 250)
+            Text(L(txt)).font(.cute(13.5, .semibold))
+            Text(L(sub)).font(.cute(11.5)).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 250)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -578,7 +578,7 @@ struct Compositor<Rodape: View>: View {
                         .disabled(pensando || enviando)
                     }
                     Spacer()
-                    if let e = erro { Text(e).font(.cute(11, .medium)).foregroundStyle(Mood.hot).lineLimit(1) }
+                    if let e = erro { Text(L(e)).font(.cute(11, .medium)).foregroundStyle(Mood.hot).lineLimit(1) }
                 }
             }
             HStack(alignment: .bottom, spacing: 8) {
@@ -631,7 +631,7 @@ struct Quieto: View {
         Button(action: acao) {
             HStack(spacing: 4) {
                 Image(systemName: sym).font(.system(size: 10, weight: .bold))
-                Text(texto).font(.cute(11, .semibold))
+                Text(L(texto)).font(.cute(11, .semibold))
             }
             .foregroundStyle(tint)
             .padding(.horizontal, 8).frame(height: 22)
@@ -653,7 +653,7 @@ struct Topo: View {
             avatar
             VStack(alignment: .leading, spacing: 1) {
                 Text(nome).font(.cute(14.5, .bold)).lineLimit(1)
-                Text(sub).font(.cute(11.5)).foregroundStyle(.secondary).lineLimit(1)
+                Text(L(sub)).font(.cute(11.5)).foregroundStyle(.secondary).lineLimit(1)
             }
             .layoutPriority(1)
             Spacer(minLength: 8)

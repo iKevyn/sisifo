@@ -145,7 +145,7 @@ struct Mention: Codable, Identifiable, Equatable {
     }
     var ago: String {
         let m = max(0, (Int(Date().timeIntervalSince1970) - ts) / 60)
-        if m < 1 { return "agora" }
+        if m < 1 { return L("agora") }
         if m < 60 { return "\(m) min" }
         if m < 60 * 48 { return "\(m / 60) h" }
         return "\(m / 1440) d"
@@ -179,7 +179,7 @@ struct UnreadChat: Codable, Identifiable, Equatable {
     var id: String { jid }
     var ago: String {
         let m = max(0, (Int(Date().timeIntervalSince1970) - lastTs) / 60)
-        if m < 1 { return "agora" }
+        if m < 1 { return L("agora") }
         if m < 60 { return "\(m) min" }
         if m < 60 * 48 { return "\(m / 60) h" }
         return "\(m / 1440) d"
@@ -226,7 +226,7 @@ struct ItemFeed: Identifiable, Equatable {
     var esperaTexto: String? { demand?.esperaTexto ?? unread?.esperaTexto ?? mention?.esperaTexto }
     var ago: String {
         let m = max(0, (Int(Date().timeIntervalSince1970) - ts) / 60)
-        if m < 1 { return "agora" }
+        if m < 1 { return L("agora") }
         if m < 60 { return "\(m) min" }
         if m < 60 * 48 { return "\(m / 60) h" }
         return "\(m / 1440) d"

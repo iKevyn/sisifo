@@ -48,6 +48,7 @@ if [ ! -f build/AppIcon.icns ]; then
   iconutil -c icns build/AppIcon.iconset -o build/AppIcon.icns
 fi
 cp build/AppIcon.icns "$R/AppIcon.icns"
+cp -R app/Resources/*.lproj "$R/"
 
 cat > "$APP/Contents/Info.plist" <<PL
 <?xml version="1.0" encoding="UTF-8"?>
@@ -62,6 +63,8 @@ cat > "$APP/Contents/Info.plist" <<PL
   <key>CFBundleShortVersionString</key><string>$VERSION</string>
   <key>CFBundleVersion</key><string>$VERSION</string>
   <key>LSMinimumSystemVersion</key><string>26.0</string>
+  <key>CFBundleDevelopmentRegion</key><string>pt-BR</string>
+  <key>CFBundleLocalizations</key><array><string>pt-BR</string><string>en</string></array>
   <key>LSApplicationCategoryType</key><string>public.app-category.productivity</string>
   <key>NSMicrophoneUsageDescription</key><string>Gravar áudio pra mandar no WhatsApp.</string>
   <key>NSHighResolutionCapable</key><true/>

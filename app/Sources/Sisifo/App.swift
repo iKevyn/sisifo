@@ -36,6 +36,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     lazy var claude = ClaudeController(store: store)
     lazy var janela = JanelaController(store: store)
     let onboarding = OnboardingController()
+    let atualizacao = Atualizacao()
     var bridge: Process?
     var unseen = false
     var animTimer: Timer?
@@ -58,34 +59,59 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         let main = NSMenu()
         let appItem = NSMenuItem(); main.addItem(appItem)
         let appMenu = NSMenu()
-        appMenu.addItem(withTitle: "Abrir janela", action: #selector(abrirJanelaMenu), keyEquivalent: "0").target = self
+        appMenu.addItem(withTitle: L("Abrir janela"), action: #selector(abrirJanelaMenu), keyEquivalent: "0").target = self
         appMenu.addItem(.separator())
-        appMenu.addItem(withTitle: "Ocultar Sísifo", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        appMenu.addItem(withTitle: L("Ocultar Sísifo"), action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
         appMenu.addItem(.separator())
-        appMenu.addItem(withTitle: "Sair do Sísifo", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appMenu.addItem(withTitle: L("Sair do Sísifo"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        let idiomaItem = NSMenuItem(title: L("Idioma"), action: nil, keyEquivalent: "")
+        let idiomas = NSMenu()
+        for (cod, nome) in [("pt", "Português"), ("en", "English")] {
+            let it = NSMenuItem(title: nome, action: #selector(trocarIdioma(_:)), keyEquivalent: "")
+            it.target = self; it.representedObject = cod; it.state = Idioma.atual == cod ? .on : .off
+            idiomas.addItem(it)
+        }
+        idiomaItem.submenu = idiomas
+        let att = NSMenuItem(title: L("Procurar atualização"), action: #selector(Atualizacao.clicouMenu), keyEquivalent: "")
+        att.target = atualizacao
+        atualizacao.menuItem = att
+        appMenu.insertItem(att, at: 1)
+        appMenu.insertItem(idiomaItem, at: 1)
+        appMenu.insertItem(.separator(), at: 1)
         appItem.submenu = appMenu
         let editItem = NSMenuItem(); main.addItem(editItem)
-        let edit = NSMenu(title: "Editar")
-        edit.addItem(withTitle: "Desfazer", action: Selector(("undo:")), keyEquivalent: "z")
-        edit.addItem(withTitle: "Refazer", action: Selector(("redo:")), keyEquivalent: "Z")
+        let edit = NSMenu(title: L("Editar"))
+        edit.addItem(withTitle: L("Desfazer"), action: Selector(("undo:")), keyEquivalent: "z")
+        edit.addItem(withTitle: L("Refazer"), action: Selector(("redo:")), keyEquivalent: "Z")
         edit.addItem(.separator())
-        edit.addItem(withTitle: "Recortar", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
-        edit.addItem(withTitle: "Copiar", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
-        edit.addItem(withTitle: "Colar", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
-        edit.addItem(withTitle: "Selecionar tudo", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        edit.addItem(withTitle: L("Recortar"), action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        edit.addItem(withTitle: L("Copiar"), action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        edit.addItem(withTitle: L("Colar"), action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        edit.addItem(withTitle: L("Selecionar tudo"), action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
         editItem.submenu = edit
         let winItem = NSMenuItem(); main.addItem(winItem)
-        let win = NSMenu(title: "Janela")
-        win.addItem(withTitle: "Fechar", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
-        win.addItem(withTitle: "Minimizar", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
+        let win = NSMenu(title: L("Janela"))
+        win.addItem(withTitle: L("Fechar"), action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        win.addItem(withTitle: L("Minimizar"), action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
         winItem.submenu = win
         NSApp.mainMenu = main
         NSApp.windowsMenu = win
     }
     @objc func abrirJanelaMenu() { janela.show() }
+    @objc func trocarIdioma(_ sender: NSMenuItem) {
+        guard let cod = sender.representedObject as? String, cod != Idioma.atual else { return }
+        quitting = true
+        server?.terminate(); serverChat?.terminate(); bridge?.terminate()
+        TrocaIdioma.definir(cod)
+    }
 
     func applicationDidFinishLaunching(_ n: Notification) {
         montarMenuPrincipal()
+        atualizacao.antesDeSair = { [weak self] in
+            self?.quitting = true
+            self?.server?.terminate(); self?.serverChat?.terminate(); self?.bridge?.terminate()
+        }
+        atualizacao.iniciar()
         // ponte do WhatsApp sempre; servidores e janela depois da primeira abertura
         startBridgeIfNeeded()
         if SisifoConfig.load().onboarded {
@@ -376,7 +402,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         }
         if popover.isShown { popover.performClose(nil) }
         let menu = NSMenu()
-        let quit = NSMenuItem(title: "Sair do Sísifo", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        let quit = NSMenuItem(title: L("Sair do Sísifo"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         quit.target = NSApp
         menu.addItem(quit)
         item.menu = menu

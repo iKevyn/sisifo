@@ -103,6 +103,8 @@ struct SisifoConfig: Codable {
     var papel: String = ""
     var equipe: [Pessoa] = []
     var onboarded: Bool = false
+    /// "pt" ou "en" (o servidor pede pro Claude escrever nesse idioma)
+    var idioma: String? = nil
 
     static var url: URL { Sisifo.home.appendingPathComponent("config.json") }
     static func load() -> SisifoConfig {
@@ -113,6 +115,25 @@ struct SisifoConfig: Codable {
         let enc = JSONEncoder()
         enc.outputFormatting = [.prettyPrinted, .sortedKeys]
         if let d = try? enc.encode(self) { try? d.write(to: Self.url, options: .atomic) }
+    }
+}
+
+// MARK: - idioma
+
+enum TrocaIdioma {
+    /// grava o idioma (app + servidores) e reabre o app
+    @MainActor static func definir(_ codigo: String) {
+        let en = codigo.hasPrefix("en")
+        UserDefaults.standard.set([en ? "en" : "pt-BR"], forKey: "AppleLanguages")
+        var c = SisifoConfig.load(); c.idioma = en ? "en" : "pt"; c.save()
+        reabrir()
+    }
+    @MainActor static func reabrir() {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/bin/sh")
+        p.arguments = ["-c", "sleep 1; open \"\(Bundle.main.bundlePath)\""]
+        try? p.run()
+        NSApp.terminate(nil)
     }
 }
 
@@ -304,7 +325,7 @@ struct OnboardingView: View {
             HStack {
                 if m.passo > 0 { Button("Voltar") { m.voltar() }.controlSize(.large) }
                 Spacer()
-                Button(rotulos[m.passo]) { m.seguir() }
+                Button(L(rotulos[m.passo])) { m.seguir() }
                     .keyboardShortcut(.defaultAction).controlSize(.large).buttonStyle(.borderedProminent)
                     .disabled(!m.podeSeguir)
             }
@@ -321,6 +342,11 @@ struct OnboardingView: View {
             Text("Boas-vindas ao Sísifo").font(.system(size: 26, weight: .bold)).padding(.top, 14)
             Text("Teus grupos de trabalho do WhatsApp, lidos e resumidos. O que pedem pra ti vira demanda, o resto tu só fica sabendo.")
                 .font(.system(size: 14)).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 470).padding(.top, 8)
+            Picker("", selection: Binding(get: { Idioma.atual }, set: { v in if v != Idioma.atual { TrocaIdioma.definir(v) } })) {
+                Text(verbatim: "Português").tag("pt")
+                Text(verbatim: "English").tag("en")
+            }
+            .pickerStyle(.segmented).labelsHidden().frame(width: 220).padding(.top, 16)
             HStack(spacing: 12) {
                 cartao("text.alignleft", .blue, "Resumo", "Cada conversa em uma linha.")
                 cartao("checkmark", .green, "Demandas", "O que é pra ti, separado.")
@@ -332,8 +358,8 @@ struct OnboardingView: View {
     func cartao(_ icone: String, _ cor: Color, _ t: String, _ s: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Image(systemName: icone).font(.system(size: 17, weight: .semibold)).foregroundStyle(cor)
-            Text(t).font(.system(size: 13, weight: .semibold)).padding(.top, 6)
-            Text(s).font(.system(size: 12)).foregroundStyle(.secondary)
+            Text(L(t)).font(.system(size: 13, weight: .semibold)).padding(.top, 6)
+            Text(L(s)).font(.system(size: 12)).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading).padding(14)
         .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.secondary.opacity(0.08)))
@@ -372,8 +398,8 @@ struct OnboardingView: View {
             Image(systemName: icone).font(.system(size: 14, weight: .semibold)).foregroundStyle(cor)
                 .frame(width: 30, height: 30).background(RoundedRectangle(cornerRadius: 8).fill(cor.opacity(0.14)))
             VStack(alignment: .leading, spacing: 1) {
-                Text(titulo).font(.system(size: 13, weight: .semibold))
-                Text(sub).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                Text(L(titulo)).font(.system(size: 13, weight: .semibold))
+                Text(L(sub)).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
             }
             Spacer()
             fim()
@@ -486,14 +512,14 @@ struct OnboardingView: View {
             HStack(spacing: 10) {
                 pilula("Claude conectado")
                 pilula("WhatsApp conectado")
-                pilula("\(m.escolhidos.count) na equipe")
+                pilula(Idioma.ingles ? "\(m.escolhidos.count) on the team" : "\(m.escolhidos.count) na equipe")
             }
             .padding(.top, 22)
             Text("Abre o Sísifo de qualquer lugar com ⌥Z").font(.system(size: 13)).foregroundStyle(.secondary).padding(.top, 20)
         }
     }
     func pilula(_ t: String) -> some View {
-        HStack(spacing: 6) { Circle().fill(.green).frame(width: 7, height: 7); Text(t).font(.system(size: 12, weight: .medium)) }
+        HStack(spacing: 6) { Circle().fill(.green).frame(width: 7, height: 7); Text(L(t)).font(.system(size: 12, weight: .medium)) }
             .padding(.horizontal, 12).padding(.vertical, 7).background(Capsule().fill(Color.secondary.opacity(0.1)))
     }
 }

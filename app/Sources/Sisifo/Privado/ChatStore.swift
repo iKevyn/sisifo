@@ -105,7 +105,7 @@ struct SuggestionsResp: Codable {
 enum Filtro: String, CaseIterable, Identifiable {
     case tudo, privado, trabalho
     var id: String { rawValue }
-    var nome: String { self == .tudo ? "Tudo" : self == .privado ? "Privado" : "Trabalho" }
+    var nome: String { L(self == .tudo ? "Tudo" : self == .privado ? "Privado" : "Trabalho") }
 }
 
 /// pílulas de status por conversa (vêm das não lidas, demandas e marcações)

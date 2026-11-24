@@ -90,7 +90,7 @@ struct Pill: View {
     var body: some View {
         HStack(spacing: 4) {
             if let symbol { Image(systemName: symbol).font(.system(size: 9, weight: .bold)) }
-            Text(text).font(.cute(11, .semibold)).lineLimit(1)
+            Text(L(text)).font(.cute(11, .semibold)).lineLimit(1)
         }
         .foregroundStyle(filled ? .white : tint)
         .padding(.horizontal, 8).frame(height: 21)
@@ -123,7 +123,7 @@ struct ActionPill: View {
         Button(action: action) {
             HStack(spacing: 5) {
                 Image(systemName: symbol).font(.system(size: 10.5, weight: .bold))
-                Text(text).font(.cute(11.5, .semibold))
+                Text(L(text)).font(.cute(11.5, .semibold))
             }
             .foregroundStyle(filled ? .white : tint)
             .padding(.horizontal, 11).frame(height: 27)
@@ -143,7 +143,7 @@ struct WaitBadge: View {
         VStack(alignment: .trailing, spacing: -2) {
             HStack(alignment: .firstTextBaseline, spacing: 1) {
                 Text(n).font(.cute(n == "agora" ? 14 : 20, .heavy)).monospacedDigit()
-                if !unit.isEmpty { Text(unit).font(.cute(11, .bold)) }
+                if !unit.isEmpty { Text(L(unit)).font(.cute(11, .bold)) }
             }
             .foregroundStyle(d.waitColor)
             Text("esperando").font(.cute(9.5, .medium)).foregroundStyle(.secondary)
@@ -413,7 +413,7 @@ struct PopoverView: View {
             if t == .mentions { store.seeMentions() }
         } label: {
             HStack(spacing: 4) {
-                Text(label)
+                Text(L(label))
                 if n > 0 { Text("\(n)").monospacedDigit().opacity(0.55) }
                 if dot && !sel { Circle().fill(Mood.calm).frame(width: 6, height: 6) }
             }
@@ -488,7 +488,7 @@ struct Disclosure: View {
             Button(action: action) {
                 HStack(spacing: 6) {
                     Image(systemName: open ? "chevron.down" : "chevron.right").font(.system(size: 9, weight: .bold))
-                    Text(text).font(.cute(11.5, .semibold))
+                    Text(L(text)).font(.cute(11.5, .semibold))
                     Spacer()
                 }
                 .contentShape(Rectangle())
@@ -575,7 +575,7 @@ struct ZapModo: View {
         let sel = store.zapTodas == todas
         return Button { withAnimation(.spring(response: 0.3)) { store.zapTodas = todas } } label: {
             HStack(spacing: 4) {
-                Text(t)
+                Text(L(t))
                 if n > 0 { Text("\(n)").monospacedDigit().opacity(0.55) }
             }
             .font(.cute(11.5, .semibold))
@@ -593,7 +593,7 @@ struct SectionTitle: View {
     let n: Int
     var body: some View {
         HStack(spacing: 5) {
-            Text(text).font(.cute(11.5, .bold))
+            Text(L(text)).font(.cute(11.5, .bold))
             Text("\(n)").font(.cute(11, .bold)).monospacedDigit().opacity(0.5)
         }
         .foregroundStyle(.secondary)
@@ -726,7 +726,7 @@ struct ReplyBox: View {
                 Button("mais curta") { store.redo(c, hint: "bem mais curta, 1 frase") }.disabled(redoing)
                 Button("vou ver e respondo") { store.drafts[c.jid] = c.isGroup ? "Vou ver isso e já te falo" : "vou ver isso e ja te falo" }
                 Spacer()
-                if let e = store.sendError[c.jid] { Text(e).foregroundStyle(Mood.hot).lineLimit(1) }
+                if let e = store.sendError[c.jid] { Text(L(e)).foregroundStyle(Mood.hot).lineLimit(1) }
             }
             .buttonStyle(.plain)
             .font(.cute(10.5, .semibold))
@@ -904,7 +904,7 @@ struct Banner: View {
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: symbol).foregroundStyle(Mood.warm)
-            Text(text).font(.cute(11.5)).fixedSize(horizontal: false, vertical: true)
+            Text(L(text)).font(.cute(11.5)).fixedSize(horizontal: false, vertical: true)
         }
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)

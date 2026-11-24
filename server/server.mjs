@@ -9,7 +9,7 @@ import { createHash } from 'node:crypto'
 import os from 'node:os'
 import path from 'node:path'
 
-import { HOME, APP_PORT, DB_PATH, TOKEN_PATH, BRIDGE, CLAUDE, WA_DATA, nome, papel, equipeTxt } from './config.mjs'
+import { HOME, APP_PORT, DB_PATH, TOKEN_PATH, BRIDGE, CLAUDE, WA_DATA, nome, papel, equipeTxt, cfg } from './config.mjs'
 const PORT = APP_PORT
 const DIR = path.join(HOME, 'demandas')
 const AVATARS = path.join(DIR, 'avatars')
@@ -139,7 +139,8 @@ function askClaude (prompt, model = MODEL) {
     const p = execFile(CLAUDE, ['-p', '--model', model, '--strict-mcp-config', '--mcp-config', cfg, '--tools', ''],
       { timeout: 120e3, maxBuffer: 4e6, cwd: DIR, env: { ...process.env, PATH: `${path.dirname(CLAUDE)}:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin` } },
       (err, out, errOut) => (err ? reject(new Error((errOut || err.message).slice(0, 300))) : resolve(out.trim())))
-    p.stdin.end(prompt)
+    // idioma do app: os textos que aparecem pra pessoa (títulos, resumos, sugestões) saem nele
+    p.stdin.end(prompt + (cfg().idioma === 'en' ? '\n\nIMPORTANT: write every human-readable text value in the JSON (titles, details, summaries, reasons, reply suggestions) in English. Keep keys and enum values exactly as specified.' : ''))
   })
 }
 

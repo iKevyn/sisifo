@@ -10,10 +10,12 @@ import AppKit
 // MARK: - peças
 
 extension ItemFeed.Tipo {
-    var rotulo: String {
+    var rotulo: String { L(rotuloPT) }
+    var rotuloPT: String {
         switch self { case .responder: return "Responder"; case .marcacao: return "@ marcou"; case .demanda: return "Demanda"; case .saber: return "Só saber"; case .aguardando: return "Aguardando" }
     }
-    var chip: String {
+    var chip: String { L(chipPT) }
+    var chipPT: String {
         switch self { case .responder: return "Responder"; case .marcacao: return "@"; case .demanda: return "Demandas"; case .saber: return "Lidas"; case .aguardando: return "Aguardando" }
     }
     var icone: String {
@@ -35,7 +37,7 @@ struct ChipsFeed: View {
                 let n = store.conta(t), sel = store.chip == t
                 Button { withAnimation(.snappy(duration: 0.2)) { store.chip = sel ? nil : t } } label: {
                     HStack(spacing: 5) {
-                        Text(t.chip)
+                        Text(L(t.chip))
                         if n > 0 { Text("\(n)").monospacedDigit().fontWeight(.bold).opacity(sel ? 1 : 0.85) }
                     }
                     .font(.system(size: 12, weight: .semibold))
@@ -62,7 +64,7 @@ struct Acao: View {
         Button(action: acao) {
             HStack(spacing: 5) {
                 Image(systemName: icone).font(.system(size: 10.5, weight: .bold))
-                if !texto.isEmpty { Text(texto).font(.system(size: 12, weight: .semibold)).lineLimit(1).fixedSize() }
+                if !texto.isEmpty { Text(L(texto)).font(.system(size: 12, weight: .semibold)).lineLimit(1).fixedSize() }
             }
             .foregroundStyle(cheio ? Color.white : cor)
             .padding(.horizontal, 11).frame(height: 28)
@@ -191,7 +193,7 @@ struct CartaoFeed: View {
                     }
                 }
             }
-            if let e = i.unread.flatMap({ store.sendError[$0.jid] }) { Text(e).font(.system(size: 11)).foregroundStyle(Mood.hot) }
+            if let e = i.unread.flatMap({ store.sendError[$0.jid] }) { Text(L(e)).font(.system(size: 11)).foregroundStyle(Mood.hot) }
         case .saber:
             if h.on || selecionado, let c = i.unread {
                 HStack(spacing: 6) { Acao(texto: "ok, li", icone: "checkmark", cor: Mood.calm) { store.unreadOK(c) } }
@@ -256,7 +258,7 @@ struct PilulaFazendo: View {
         let cor = claude ? Color.purple : Color.indigo
         HStack(spacing: 4) {
             Image(systemName: claude ? "sparkle" : "hammer.fill").font(.system(size: 9.5, weight: .bold))
-            Text(texto).font(.system(size: 11, weight: .semibold)).lineLimit(1).truncationMode(.tail)
+            Text(L(texto)).font(.system(size: 11, weight: .semibold)).lineLimit(1).truncationMode(.tail)
         }
         .foregroundStyle(cor)
         .padding(.horizontal, 8).frame(height: 20)
@@ -301,7 +303,7 @@ struct PilulaEspera: View {
     var body: some View {
         HStack(spacing: 4) {
             Image(systemName: respondida ? "checkmark.bubble.fill" : "hourglass").font(.system(size: 9.5, weight: .bold))
-            Text(texto).font(.system(size: 11, weight: .semibold)).lineLimit(1).truncationMode(.tail)
+            Text(L(texto)).font(.system(size: 11, weight: .semibold)).lineLimit(1).truncationMode(.tail)
         }
         .foregroundStyle(Color.teal)
         .padding(.horizontal, 8).frame(height: 20)
@@ -459,7 +461,7 @@ struct BotaoGrande: View {
         Button(action: acao) {
             HStack(spacing: 6) {
                 Image(systemName: icone).font(.system(size: 12, weight: .bold))
-                Text(texto).font(.system(size: 13, weight: .semibold)).lineLimit(1)
+                Text(L(texto)).font(.system(size: 13, weight: .semibold)).lineLimit(1)
             }
             .foregroundStyle(cheio ? Color.white : Color.primary)
             .frame(maxWidth: .infinity).frame(height: 38)
@@ -708,7 +710,7 @@ struct EscolhaAlgo: View {
     var body: some View {
         VStack(spacing: 10) {
             DaemonLogo(size: 40).opacity(0.45)
-            Text(texto).font(.system(size: 13, weight: .semibold)).foregroundStyle(.secondary)
+            Text(L(texto)).font(.system(size: 13, weight: .semibold)).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
