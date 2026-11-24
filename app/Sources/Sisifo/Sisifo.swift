@@ -12,8 +12,10 @@ enum Sisifo {
         try? FileManager.default.createDirectory(at: u, withIntermediateDirectories: true)
         return u
     }()
-    static let waData = home.appendingPathComponent("whatsapp", isDirectory: true)
-    static let bridgePort = 47851
+    /// dá pra usar uma ponte do WhatsApp que já existe (defaults write app.sisifo.Sisifo waData/bridgePort)
+    static let waData: URL = UserDefaults.standard.string(forKey: "waData").map { URL(fileURLWithPath: $0, isDirectory: true) }
+        ?? home.appendingPathComponent("whatsapp", isDirectory: true)
+    static let bridgePort: Int = { let p = UserDefaults.standard.integer(forKey: "bridgePort"); return p > 0 ? p : 47851 }()
     static let appPort = 47852
     static let chatPort = 47853
     static let bridgeBase = "http://127.0.0.1:\(bridgePort)"
