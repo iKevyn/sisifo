@@ -658,13 +658,8 @@ struct MenuJanela: View {
                 Text("Automático").tag("auto"); Text("Claro").tag("claro"); Text("Escuro").tag("escuro")
             }
             Divider()
-            Menu("Som de demanda nova") {
-                ForEach(WakeSound.options, id: \.id) { o in
-                    Toggle(L(o.name), isOn: Binding(get: { som == o.id }, set: { _ in som = o.id; WakeSound.play(o.id) }))
-                }
-                Divider()
-                Toggle("Sem som", isOn: Binding(get: { som == "off" }, set: { _ in som = "off" }))
-            }
+            Toggle("Som de demanda nova", isOn: Binding(get: { som != "off" },
+                set: { on in som = on ? WakeSound.padrao : "off"; if on { WakeSound.play(WakeSound.padrao) } }))
             Toggle("Abrir quando ligar o Mac", isOn: Binding(
                 get: { SMAppService.mainApp.status == .enabled },
                 set: { on in if on { try? SMAppService.mainApp.register() } else { try? SMAppService.mainApp.unregister() } }))

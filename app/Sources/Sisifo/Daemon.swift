@@ -185,15 +185,8 @@ enum IdleAnim {
 
 /// som de demanda nova (janela › Ajustes › Som de demanda nova). Gerados por tools/sons_sisifo.py
 enum WakeSound {
-    static let options: [(id: String, name: String)] = [
-        ("pedra-topo", "Chegou no topo"),
-        ("pedra-rolando", "Pedra rolando"),
-        ("toque-pedra", "Toque na pedra"),
-        ("rachadura", "Rachadura"),
-        ("eco-morro", "Eco do morro"),
-        ("empurrao", "Empurrão"),
-    ]
-    static let padrao = "pedra-topo"
+    static let options: [(id: String, name: String)] = [("eco-morro", "Eco do morro")]
+    static let padrao = "eco-morro"
     static var current: String {
         let v = UserDefaults.standard.string(forKey: "sound") ?? padrao
         return v == "off" || options.contains(where: { $0.id == v }) ? v : padrao

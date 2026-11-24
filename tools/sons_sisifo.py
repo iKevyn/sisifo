@@ -116,35 +116,7 @@ def finalizar(b, nome, pico=0.89):
     print(nome, f'{len(b) / SR:.2f}s')
 
 
-# 1 pedra rolando morro abaixo (a caixa encheu de novo)
-b = buf(1.5); add(b, 0, rumble(1.35, 170, 10)); add(b, 1.28, thud(0.2, 90, 50, 0.6, 0.3), 0.5)
-finalizar(b, 'pedra-rolando')
-
-# 2 chegou no topo: pancada firme + sininho de pedra subindo
-b = buf(1.3); add(b, 0, thud(0.4, 110, 48, 1.0, 0.45)); add(b, 0.16, chime(660, 0.8, 0.35)); add(b, 0.27, chime(990, 0.9, 0.3))
-finalizar(b, 'pedra-topo')
-
-# 3 toque na pedra: dois toques secos (o mais discreto)
-b = buf(0.45); add(b, 0, knock(760)); add(b, 0.13, knock(980, amp=0.8))
-finalizar(b, 'toque-pedra')
-
-# 4 rachadura: estalo + pedrinhas caindo
-b = buf(1.0)
-add(b, 0, [v * math.exp(-i / (0.012 * SR)) for i, v in enumerate(highpass(noise(int(0.06 * SR)), 1800))], 1.0)
-add(b, 0.01, thud(0.18, 180, 90, 0.5, 0.2), 0.6)
-t = 0.08
-while t < 0.85:
-    add(b, t, knock(random.uniform(1400, 2600), 0.04, random.uniform(0.15, 0.4) * (1 - t)), 1.0)
-    t += random.uniform(0.03, 0.09)
-finalizar(b, 'rachadura')
-
 # 5 eco do morro: pancada grave lá embaixo e o morro respondendo
 b = echo(thud(0.5, 80, 38, 1.0, 0.35))
 finalizar(b, 'eco-morro')
 
-# 6 empurrão: arrasto (atrito de pedra) subindo e um tum no fim
-n = int(0.7 * SR)
-arr = lowpass(noise(n), 700)
-arr = [v * min(1, i / (0.15 * SR)) * (0.6 + 0.4 * math.sin(2 * math.pi * 11 * i / SR)) for i, v in enumerate(arr)]
-b = buf(1.15); add(b, 0, arr, 1.6); add(b, 0.68, thud(0.45, 100, 45, 1.0, 0.4))
-finalizar(b, 'empurrao')

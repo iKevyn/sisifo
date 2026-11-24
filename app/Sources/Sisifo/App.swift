@@ -423,14 +423,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             menu.addItem(i)
         }
         menu.addItem(.separator())
-        // som
-        let somItem = NSMenuItem(title: L("Som de demanda nova"), action: nil, keyEquivalent: "")
-        let som = NSMenu()
-        for o in WakeSound.options { som.addItem(item(L(o.name), #selector(escolherSom(_:)), obj: o.id, on: WakeSound.current == o.id)) }
-        som.addItem(.separator())
-        som.addItem(item(L("Sem som"), #selector(escolherSom(_:)), obj: "off", on: WakeSound.current == "off"))
-        somItem.submenu = som
-        menu.addItem(somItem)
+        // som (um só: eco do morro)
+        menu.addItem(item(L("Som de demanda nova"), #selector(alternarSom), on: WakeSound.current != "off"))
         // aparência
         let apItem = NSMenuItem(title: L("Aparência"), action: nil, keyEquivalent: "")
         let ap = NSMenu()
@@ -454,6 +448,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         self.item.menu = menu
         self.item.button?.performClick(nil)
         self.item.menu = nil
+    }
+    @objc func alternarSom() {
+        let ligar = WakeSound.current == "off"
+        UserDefaults.standard.set(ligar ? WakeSound.padrao : "off", forKey: "sound")
+        if ligar { WakeSound.play(WakeSound.padrao) }
     }
     @objc func escolherSom(_ s: NSMenuItem) {
         guard let v = s.representedObject as? String else { return }
