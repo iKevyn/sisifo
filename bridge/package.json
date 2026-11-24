@@ -1,0 +1,18 @@
+{
+  "name": "sisifo-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Ponte local do WhatsApp (Baileys) do Sísifo",
+  "scripts": {
+    "bridge": "node --no-warnings src/bridge.js"
+  },
+  "engines": {
+    "node": ">=22.5"
+  },
+  "dependencies": {
+    "baileys": "^7.0.0-rc14",
+    "pino": "^10.4.0",
+    "qrcode": "^1.5.4"
+  }
+}

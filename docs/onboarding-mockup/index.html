@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Sísifo · primeira abertura</title>
+<style>
+  :root {
+    --fundo: #ECECEF; --janela: #FFFFFF; --texto: #1D1D1F; --suave: #6E6E73; --linha: rgba(0,0,0,.08);
+    --azul: #0A84FF; --verde: #34C759; --pedra: #7E8782; --pedra2: #555D58; --card: #F5F5F7; --aviso: #FFF4E5; --aviso-t: #8A5300;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { font: 13px/1.45 -apple-system, "SF Pro Text", system-ui, sans-serif; color: var(--texto); background: var(--fundo); -webkit-font-smoothing: antialiased; }
+  .palco { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; padding: 48px 24px; }
+  .dica { color: var(--suave); font-size: 12px; }
+  .dica kbd { font: 600 11px/1 -apple-system, system-ui, sans-serif; padding: 3px 6px; border-radius: 5px; background: #fff; box-shadow: 0 1px 0 rgba(0,0,0,.12); }
+
+  /* janela macOS */
+  .janela { width: 720px; height: 520px; background: var(--janela); border-radius: 14px; overflow: hidden; display: flex; flex-direction: column;
+            box-shadow: 0 0 0 .5px rgba(0,0,0,.25), 0 22px 70px rgba(0,0,0,.22), 0 8px 20px rgba(0,0,0,.08); }
+  .barra { height: 40px; flex: none; display: flex; align-items: center; padding: 0 14px; gap: 8px; }
+  .sem { width: 12px; height: 12px; border-radius: 50%; }
+  .sem.r { background: #FF5F57; } .sem.y { background: #FEBC2E; } .sem.g { background: #28C840; }
+  .passos { margin-left: auto; margin-right: auto; display: flex; gap: 6px; transform: translateX(-26px); }
+  .passos i { width: 7px; height: 7px; border-radius: 50%; background: #D2D2D7; transition: all .25s; }
+  .passos i.on { background: var(--texto); width: 20px; border-radius: 4px; }
+  .corpo { flex: 1; position: relative; overflow: hidden; }
+  .tela { position: absolute; inset: 0; padding: 8px 64px 0; display: flex; flex-direction: column; align-items: center; text-align: center;
+          opacity: 0; transform: translateX(30px); transition: opacity .3s ease, transform .3s ease; pointer-events: none; }
+  .tela.on { opacity: 1; transform: none; pointer-events: auto; }
+  .tela.saiu { transform: translateX(-30px); }
+  .tela h1 { font: 700 26px/1.15 -apple-system, "SF Pro Display", system-ui; letter-spacing: -.02em; margin-top: 18px; }
+  .tela p.lead { margin-top: 8px; font-size: 14px; color: var(--suave); max-width: 470px; }
+  .rodape { height: 64px; flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; border-top: 1px solid var(--linha); background: #FBFBFD; }
+  .btn { font: 500 13px/1 -apple-system, system-ui, sans-serif; height: 30px; padding: 0 16px; border-radius: 8px; border: 0; cursor: pointer; }
+  .btn.pri { background: var(--azul); color: #fff; min-width: 110px; }
+  .btn.pri:disabled { opacity: .45; cursor: default; }
+  .btn.sec { background: #fff; color: var(--texto); box-shadow: 0 0 0 .5px rgba(0,0,0,.18), 0 1px 1px rgba(0,0,0,.06); }
+  .btn.link { background: none; color: var(--azul); padding: 0 6px; }
+  .esq { display: flex; gap: 8px; align-items: center; }
+
+  .icone { width: 112px; height: 112px; margin-top: 30px; filter: drop-shadow(0 10px 16px rgba(0,0,0,.18)); }
+  .icone.p { width: 64px; height: 64px; margin-top: 18px; }
+  .pontos { margin-top: 26px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; width: 100%; max-width: 560px; }
+  .ponto { background: var(--card); border-radius: 12px; padding: 14px 12px; text-align: left; }
+  .ponto svg { width: 22px; height: 22px; }
+  .ponto b { display: block; margin-top: 8px; font-size: 13px; }
+  .ponto span { color: var(--suave); font-size: 12px; }
+
+  .bloco { margin-top: 22px; width: 100%; max-width: 500px; background: var(--card); border-radius: 12px; text-align: left; }
+  .linha { display: flex; align-items: center; gap: 12px; padding: 12px 14px; }
+  .linha + .linha { border-top: 1px solid var(--linha); }
+  .linha .ic { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; flex: none; }
+  .linha .ic svg { width: 17px; height: 17px; }
+  .linha .t { flex: 1; min-width: 0; }
+  .linha .t b { display: block; font-weight: 600; }
+  .linha .t span { color: var(--suave); font-size: 12px; }
+  .ok { color: #248A3D; font-weight: 600; font-size: 12px; display: inline-flex; align-items: center; gap: 5px; }
+  .ok::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--verde); }
+  .espera { color: var(--suave); font-size: 12px; display: inline-flex; align-items: center; gap: 6px; }
+  .giro { width: 12px; height: 12px; border-radius: 50%; border: 2px solid #D2D2D7; border-top-color: var(--suave); animation: g 0.8s linear infinite; }
+  @keyframes g { to { transform: rotate(360deg); } }
+  code { font: 12px ui-monospace, "SF Mono", monospace; background: #fff; padding: 2px 6px; border-radius: 5px; box-shadow: 0 0 0 .5px rgba(0,0,0,.12); }
+
+  .qrwrap { margin-top: 18px; display: grid; grid-template-columns: 190px 1fr; gap: 26px; align-items: center; text-align: left; max-width: 540px; }
+  .qr { width: 190px; height: 190px; border-radius: 14px; background: #fff; padding: 12px; box-shadow: 0 0 0 .5px rgba(0,0,0,.15), 0 6px 18px rgba(0,0,0,.08); position: relative; }
+  .qr canvas { width: 100%; height: 100%; image-rendering: pixelated; }
+  .qr .meio { position: absolute; left: 50%; top: 50%; width: 42px; height: 42px; margin: -21px 0 0 -21px; background: #fff; border-radius: 10px; display: grid; place-items: center; }
+  .qr .meio svg { width: 32px; height: 32px; }
+  ol.passo { padding-left: 18px; display: flex; flex-direction: column; gap: 9px; font-size: 13px; }
+  ol.passo li::marker { color: var(--suave); font-weight: 600; }
+  .aviso { margin-top: 18px; max-width: 540px; display: flex; gap: 10px; align-items: flex-start; text-align: left; background: var(--aviso); color: var(--aviso-t); border-radius: 10px; padding: 10px 12px; font-size: 12px; }
+  .aviso svg { flex: none; width: 16px; height: 16px; margin-top: 1px; }
+
+  .busca { margin-top: 16px; width: 100%; max-width: 500px; height: 30px; border-radius: 8px; border: 0; padding: 0 12px 0 30px; font: 13px -apple-system, system-ui, sans-serif; background: var(--card) no-repeat 10px center / 13px; }
+  .contatos { margin-top: 10px; width: 100%; max-width: 500px; max-height: 236px; overflow: auto; background: var(--card); border-radius: 12px; text-align: left; }
+  .contato { display: flex; align-items: center; gap: 11px; padding: 8px 14px; cursor: pointer; }
+  .contato + .contato { border-top: 1px solid var(--linha); }
+  .av { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-weight: 600; font-size: 12px; flex: none; }
+  .contato .t { flex: 1; }
+  .contato .t span { display: block; color: var(--suave); font-size: 11.5px; }
+  .chk { width: 18px; height: 18px; border-radius: 5px; box-shadow: inset 0 0 0 1.5px #C7C7CC; display: grid; place-items: center; flex: none; transition: background .15s; }
+  .contato.sel .chk { background: var(--azul); box-shadow: none; }
+  .contato.sel .chk::after { content: ""; width: 8px; height: 4px; border: solid #fff; border-width: 0 0 2px 2px; transform: rotate(-45deg) translate(1px,-1px); }
+  .conta { margin-top: 8px; color: var(--suave); font-size: 12px; }
+
+  .chave { width: 38px; height: 22px; border-radius: 11px; background: #E3E3E8; position: relative; cursor: pointer; transition: background .2s; flex: none; }
+  .chave::after { content: ""; position: absolute; left: 2px; top: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: left .2s; }
+  .chave.on { background: var(--verde); } .chave.on::after { left: 18px; }
+
+  .resumo { margin-top: 22px; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+  .pilula { display: inline-flex; align-items: center; gap: 6px; background: var(--card); border-radius: 999px; padding: 7px 12px; font-size: 12px; font-weight: 500; }
+  .pilula::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--verde); }
+  .atalho { margin-top: 20px; color: var(--suave); }
+
+  /* visão geral */
+  .geral { width: 100%; max-width: 1240px; padding: 0 24px 64px; }
+  .geral h2 { font: 700 15px/1 -apple-system, system-ui, sans-serif; color: var(--suave); letter-spacing: .04em; text-transform: uppercase; margin: 10px 0 16px; }
+  .miniaturas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+  .mini { cursor: pointer; }
+  .mini .vis { height: 260px; overflow: hidden; border-radius: 10px; position: relative; }
+  .mini .vis > .janela { transform: scale(.5); transform-origin: top left; width: 720px; height: 520px; position: absolute; }
+  .mini > b { display: block; margin-top: 8px; font-size: 13px; }
+  .mini > span { color: var(--suave); font-size: 12px; }
+</style>
+</head>
+<body>
+
+<div class="palco">
+  <div class="janela" id="principal"></div>
+  <div class="dica">Clica nos botões ou usa <kbd>←</kbd> <kbd>→</kbd> pra passar as telas. Lá embaixo tem todas lado a lado.</div>
+</div>
+<div class="geral"><h2>Todas as telas</h2><div class="miniaturas" id="mini"></div></div>
+
+<template id="tpl">
+  <div class="barra"><span class="sem r"></span><span class="sem y"></span><span class="sem g"></span><div class="passos"></div></div>
+  <div class="corpo">
+
+    <!-- 1 boas-vindas -->
+    <section class="tela" data-titulo="Boas-vindas" data-sub="Pedra, nome e o que o app faz">
+      <svg class="icone" viewBox="14 10 100 108"><path d="M34 96 C22 80 24 52 40 34 C54 18 82 16 96 34 C110 52 108 84 96 100 C84 112 46 112 34 96 Z" fill="#fff" stroke="#fff" stroke-width="12" stroke-linejoin="round"/><path d="M34 96 C22 80 24 52 40 34 C54 18 82 16 96 34 C110 52 108 84 96 100 C84 112 46 112 34 96 Z" fill="#7E8782"/><path d="M66 20 L60 44 L72 54 L64 76 L70 90" stroke="#555D58" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M40 60 L52 66" stroke="#555D58" stroke-width="3.5" fill="none" stroke-linecap="round"/><path d="M42 46 a26 30 0 0 1 12 -14" stroke="#fff" stroke-width="5" fill="none" stroke-linecap="round" opacity=".85"/></svg>
+      <h1>Boas-vindas ao Sísifo</h1>
+      <p class="lead">Teus grupos de trabalho do WhatsApp, lidos e resumidos. O que pedem pra ti vira demanda, o resto tu só fica sabendo.</p>
+      <div class="pontos">
+        <div class="ponto"><svg viewBox="0 0 24 24" fill="none" stroke="#0A84FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h7"/></svg><b>Resumo</b><span>Cada conversa em uma linha.</span></div>
+        <div class="ponto"><svg viewBox="0 0 24 24" fill="none" stroke="#34C759" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4 10-10"/></svg><b>Demandas</b><span>O que é pra ti, separado.</span></div>
+        <div class="ponto"><svg viewBox="0 0 24 24" fill="none" stroke="#7E8782" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><b>Tudo local</b><span>Nada sai do teu Mac.</span></div>
+      </div>
+    </section>
+
+    <!-- 2 claude -->
+    <section class="tela" data-titulo="Conectar o Claude" data-sub="Detecta o Claude Code e faz o login oficial">
+      <svg class="icone p" viewBox="0 0 64 64"><rect width="64" height="64" rx="15" fill="#D97757"/><g fill="#fff" transform="translate(32 32)"><rect x="-2.6" y="-20" width="5.2" height="40" rx="2.6"/><rect x="-2.6" y="-20" width="5.2" height="40" rx="2.6" transform="rotate(45)"/><rect x="-2.6" y="-20" width="5.2" height="40" rx="2.6" transform="rotate(90)"/><rect x="-2.6" y="-20" width="5.2" height="40" rx="2.6" transform="rotate(135)"/></g></svg>
+      <h1>Conectar o Claude</h1>
+      <p class="lead">O Sísifo usa o Claude da tua assinatura pra ler e resumir. Ele roda pelo Claude Code, direto no teu Mac.</p>
+      <div class="bloco">
+        <div class="linha"><div class="ic" style="background:#E8F8EC"><svg viewBox="0 0 24 24" fill="none" stroke="#248A3D" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4 10-10"/></svg></div>
+          <div class="t"><b>Claude Code encontrado</b><span>Versão 2.4 em <code>~/.local/bin/claude</code></span></div><span class="ok">Instalado</span></div>
+        <div class="linha" id="linhaClaude"><div class="ic" style="background:#FBEDE7"><svg viewBox="0 0 24 24" fill="none" stroke="#D97757" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg></div>
+          <div class="t"><b>Tua conta</b><span id="contaClaude">Abre o login do Claude no navegador.</span></div><button class="btn sec" id="btnClaude">Entrar com Claude</button></div>
+      </div>
+      <button class="btn link" style="margin-top:12px">Não tenho o Claude Code. Como instalar?</button>
+    </section>
+
+    <!-- 3 whatsapp -->
+    <section class="tela" data-titulo="Conectar o WhatsApp" data-sub="QR code igual ao WhatsApp Web, com o aviso">
+      <h1 style="margin-top:22px">Conectar o WhatsApp</h1>
+      <p class="lead">Igual ao WhatsApp Web: o Sísifo vira um aparelho conectado na tua conta.</p>
+      <div class="qrwrap">
+        <div class="qr" id="qr"><canvas width="29" height="29"></canvas><div class="meio"><svg viewBox="14 10 100 108"><path d="M34 96 C22 80 24 52 40 34 C54 18 82 16 96 34 C110 52 108 84 96 100 C84 112 46 112 34 96 Z" fill="#7E8782"/><path d="M66 20 L60 44 L72 54 L64 76 L70 90" stroke="#555D58" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div></div>
+        <div>
+          <ol class="passo">
+            <li>Abre o WhatsApp no celular</li>
+            <li>Toca em <b>Configurações</b> e depois em <b>Aparelhos conectados</b></li>
+            <li>Toca em <b>Conectar um aparelho</b></li>
+            <li>Aponta a câmera pra este código</li>
+          </ol>
+          <div style="margin-top:14px" id="statusZap"><span class="espera"><span class="giro"></span>Esperando o celular…</span></div>
+        </div>
+      </div>
+      <div class="aviso"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18v.5"/></svg>
+        <span>Essa conexão não é oficial do WhatsApp. Funciona como o WhatsApp Web, mas o WhatsApp pode limitar contas que usam apps assim. As mensagens ficam só no teu Mac.</span></div>
+    </section>
+
+    <!-- 4 equipe -->
+    <section class="tela" data-titulo="Tua equipe" data-sub="Marca quem é da equipe pra separar grupos de trabalho">
+      <h1 style="margin-top:22px">Quem é da tua equipe?</h1>
+      <p class="lead">Grupos onde a tua equipe fala viram <b>Trabalho</b>. O resto fica em <b>Privado</b>. Dá pra mudar depois.</p>
+      <input class="busca" placeholder="Buscar contato">
+      <div class="contatos" id="contatos"></div>
+      <div class="conta" id="contaSel"></div>
+    </section>
+
+    <!-- 5 permissoes -->
+    <section class="tela" data-titulo="Permissões" data-sub="Notificações e microfone, com chave">
+      <h1 style="margin-top:22px">Só mais duas coisas</h1>
+      <p class="lead">Pra avisar quando chega demanda e pra mandar áudio pelo app.</p>
+      <div class="bloco">
+        <div class="linha"><div class="ic" style="background:#FDECEC"><svg viewBox="0 0 24 24" fill="none" stroke="#FF3B30" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 8 3 8H3s3-1 3-8"/><path d="M10 20a2 2 0 0 0 4 0"/></svg></div>
+          <div class="t"><b>Notificações</b><span>Avisa quando alguém te pede algo.</span></div><div class="chave on"></div></div>
+        <div class="linha"><div class="ic" style="background:#FFF4E0"><svg viewBox="0 0 24 24" fill="none" stroke="#FF9500" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></div>
+          <div class="t"><b>Microfone</b><span>Só quando tu grava um áudio.</span></div><div class="chave"></div></div>
+        <div class="linha"><div class="ic" style="background:#EAF2FF"><svg viewBox="0 0 24 24" fill="none" stroke="#0A84FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M3 9h18"/></svg></div>
+          <div class="t"><b>Abrir ao iniciar o Mac</b><span>Pra não perder nada.</span></div><div class="chave on"></div></div>
+      </div>
+    </section>
+
+    <!-- 6 pronto -->
+    <section class="tela" data-titulo="Pronto" data-sub="Resumo do que foi conectado e o atalho">
+      <svg class="icone" viewBox="14 10 100 108"><path d="M34 96 C22 80 24 52 40 34 C54 18 82 16 96 34 C110 52 108 84 96 100 C84 112 46 112 34 96 Z" fill="#fff" stroke="#fff" stroke-width="12" stroke-linejoin="round"/><path d="M34 96 C22 80 24 52 40 34 C54 18 82 16 96 34 C110 52 108 84 96 100 C84 112 46 112 34 96 Z" fill="#7E8782"/><path d="M66 20 L60 44 L72 54 L64 76 L70 90" stroke="#555D58" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M40 60 L52 66" stroke="#555D58" stroke-width="3.5" fill="none" stroke-linecap="round"/><path d="M42 46 a26 30 0 0 1 12 -14" stroke="#fff" stroke-width="5" fill="none" stroke-linecap="round" opacity=".85"/></svg>
+      <h1>Tudo certo</h1>
+      <p class="lead">O Sísifo já está lendo as conversas. As primeiras demandas aparecem em alguns minutos.</p>
+      <div class="resumo"><span class="pilula">Claude conectado</span><span class="pilula">WhatsApp conectado</span><span class="pilula" id="pilEquipe">3 pessoas na equipe</span></div>
+      <p class="atalho">Abre o Sísifo de qualquer lugar com <code>⌥ Z</code></p>
+    </section>
+  </div>
+  <div class="rodape">
+    <div class="esq"><button class="btn sec voltar">Voltar</button></div>
+    <button class="btn pri seguir">Começar</button>
+  </div>
+</template>
+
+<script>
+const tpl = document.getElementById('tpl').content;
+const nomes = [['Bruno','Sócio'],['Carla','Design'],['Diego','Tráfego'],['Ana Lima','Loja Aurora'],['Pedro','Studio Norte'],['Rita','Café Grão'],['Lucas','Mercado Sol'],['Júlia','Loja Aurora'],['Marcos','Atelier Vila'],['Sofia','Casa Brisa']];
+const cores = ['#FF9F0A','#BF5AF2','#0A84FF','#30B0C7','#FF375F','#34C759','#5E5CE6','#AC8E68','#FF6B3D','#64D2FF'];
+const rotulos = ['Começar','Continuar','Continuar','Continuar','Continuar','Abrir o Sísifo'];
+
+function qr(c) {
+  const x = c.getContext('2d'), n = 29; x.fillStyle = '#fff'; x.fillRect(0,0,n,n); x.fillStyle = '#1D1D1F';
+  let s = 7; const r = () => (s = (s * 9301 + 49297) % 233280) / 233280;
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) if (r() > .52) x.fillRect(i, j, 1, 1);
+  const olho = (a, b) => { x.fillStyle='#1D1D1F'; x.fillRect(a,b,7,7); x.fillStyle='#fff'; x.fillRect(a+1,b+1,5,5); x.fillStyle='#1D1D1F'; x.fillRect(a+2,b+2,3,3); x.fillStyle='#fff'; x.fillRect(a-1<0?a:a-1, b+7, 9, 1); };
+  x.fillStyle='#fff'; x.fillRect(0,0,8,8); x.fillRect(n-8,0,8,8); x.fillRect(0,n-8,8,8);
+  olho(0,0); olho(n-7,0); olho(0,n-7);
+}
+
+function montar(raiz, fixo) {
+  raiz.appendChild(tpl.cloneNode(true));
+  const telas = [...raiz.querySelectorAll('.tela')], pts = raiz.querySelector('.passos');
+  telas.forEach(() => pts.appendChild(document.createElement('i')));
+  qr(raiz.querySelector('#qr canvas'));
+  const lista = raiz.querySelector('#contatos');
+  nomes.forEach(([n, d], k) => lista.insertAdjacentHTML('beforeend', `<div class="contato${k < 3 ? ' sel' : ''}"><div class="av" style="background:${cores[k]}">${n[0]}</div><div class="t">${n}<span>${d}</span></div><div class="chk"></div></div>`));
+  const contar = () => { const q = lista.querySelectorAll('.sel').length; raiz.querySelector('#contaSel').textContent = `${q} selecionados`; raiz.querySelector('#pilEquipe').textContent = `${q} ${q === 1 ? 'pessoa' : 'pessoas'} na equipe`; };
+  lista.addEventListener('click', e => { const c = e.target.closest('.contato'); if (c) { c.classList.toggle('sel'); contar(); } }); contar();
+  raiz.querySelectorAll('.chave').forEach(k => k.addEventListener('click', () => k.classList.toggle('on')));
+  const btnC = raiz.querySelector('#btnClaude');
+  const conectarClaude = () => { btnC.replaceWith(Object.assign(document.createElement('span'), { className: 'ok', textContent: 'Conectado' })); raiz.querySelector('#contaClaude').textContent = 'voce@exemplo.com · plano Max'; };
+  btnC.addEventListener('click', conectarClaude);
+
+  let i = 0;
+  const seguir = raiz.querySelector('.seguir'), voltar = raiz.querySelector('.voltar');
+  function ir(n) {
+    i = Math.max(0, Math.min(telas.length - 1, n));
+    telas.forEach((t, k) => { t.classList.toggle('on', k === i); t.classList.toggle('saiu', k < i); });
+    [...pts.children].forEach((p, k) => p.classList.toggle('on', k === i));
+    seguir.textContent = rotulos[i]; voltar.style.visibility = i ? 'visible' : 'hidden';
+    if (i === 2 && !fixo) setTimeout(() => { if (i === 2) raiz.querySelector('#statusZap').innerHTML = '<span class="ok">Conectado como +55 11 9••••-0000</span>'; }, 2600);
+  }
+  seguir.onclick = () => ir(i + 1); voltar.onclick = () => ir(i - 1);
+  raiz.ir = ir;
+  return telas;
+}
+
+const principal = document.getElementById('principal');
+const telas = montar(principal, false); principal.ir(0);
+document.addEventListener('keydown', e => { if (e.key === 'ArrowRight') principal.querySelector('.seguir').click(); if (e.key === 'ArrowLeft') principal.querySelector('.voltar').click(); });
+
+const mini = document.getElementById('mini');
+telas.forEach((t, k) => {
+  const box = document.createElement('div'); box.className = 'mini';
+  box.innerHTML = `<div class="vis"><div class="janela"></div></div><b>${k + 1}. ${t.dataset.titulo}</b><span>${t.dataset.sub}</span>`;
+  mini.appendChild(box);
+  const j = box.querySelector('.janela'); montar(j, true); j.ir(k);
+  if (k === 1) j.querySelector('#btnClaude').click();
+  if (k === 2) j.querySelector('#statusZap').innerHTML = '<span class="espera"><span class="giro"></span>Esperando o celular…</span>';
+  box.onclick = () => { principal.ir(k); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+});
+</script>
+</body>
+</html>
