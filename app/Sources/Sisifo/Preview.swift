@@ -94,6 +94,10 @@ enum PreviewRender {
             jm.sel = s.feed.first?.id
             saveWin(JanelaView(store: s, m: jm).frame(width: CGFloat(w), height: CGFloat(h)), "\(dir)/tam-\(w)x\(h)-det.png")
         }
+        // colunas automáticas: busca sem resultado = nenhuma coluna (estado vazio)
+        jm.sel = nil; jm.busca = "zzzz"
+        saveWin(JanelaView(store: s, m: jm).frame(width: 1120, height: 680), "\(dir)/tam-vazio.png")
+        jm.busca = ""
         s.zp.filtro = .trabalho
         s.layout = .caixa
         saveWin(PopoverView(store: s), "\(dir)/lay-caixa-trabalho.png")

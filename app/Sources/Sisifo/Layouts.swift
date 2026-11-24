@@ -864,15 +864,14 @@ struct JanelaHoje: View {
         // conversa que segue aberta depois de eu responder (o item saiu das não lidas)
         let chatJid: String? = m.sel.flatMap { $0.hasPrefix("c:") ? String($0.dropFirst(2)) : nil }
         let detalhe = sel != nil || chatJid != nil
-        var raias = [
+        // colunas automáticas: só aparece a que tem algo
+        let raias = [
             RaiaInfo(titulo: "Responder", cor: .blue, itens: todos.filter { $0.tipo == .responder || $0.tipo == .marcacao }),
             RaiaInfo(titulo: "Fazer", cor: Mood.warm, itens: todos.filter { $0.tipo == .demanda && $0.demand?.doing == nil }),
-        ]
-        let fazendo = todos.filter { $0.tipo == .demanda && $0.demand?.doing != nil }
-        if !fazendo.isEmpty { raias.append(RaiaInfo(titulo: "Fazendo", cor: .indigo, itens: fazendo, mostraFazendo: false)) }
-        let parados = todos.filter { $0.tipo == .aguardando }
-        if !parados.isEmpty { raias.append(RaiaInfo(titulo: "Aguardando", cor: .teal, itens: parados)) }
-        raias.append(RaiaInfo(titulo: "Só saber", cor: .secondary, itens: todos.filter { $0.tipo == .saber }))
+            RaiaInfo(titulo: "Fazendo", cor: .indigo, itens: todos.filter { $0.tipo == .demanda && $0.demand?.doing != nil }, mostraFazendo: false),
+            RaiaInfo(titulo: "Aguardando", cor: .teal, itens: todos.filter { $0.tipo == .aguardando }),
+            RaiaInfo(titulo: "Só saber", cor: .secondary, itens: todos.filter { $0.tipo == .saber }),
+        ].filter { !$0.itens.isEmpty }
 
         return GeometryReader { geo in
             let W = geo.size.width
@@ -882,10 +881,10 @@ struct JanelaHoje: View {
             // quantas raias cabem sem espremer
             let cabem = max(0, Int((livre + Self.gap) / (Self.raiaMin + Self.gap)))
             let soDetalhe = detalhe && cabem == 0
-            let mostrar = max(1, min(raias.count, cabem))
+            let mostrar = raias.isEmpty ? 0 : max(1, min(raias.count, cabem))
             let abas = !soDetalhe && mostrar < raias.count
-            let inicio = min(m.raiaInicio, raias.count - mostrar)
-            let visiveis = soDetalhe ? [] : Array(raias[inicio..<(inicio + mostrar)])
+            let inicio = max(0, min(m.raiaInicio, raias.count - mostrar))
+            let visiveis = soDetalhe || raias.isEmpty ? [] : Array(raias[inicio..<(inicio + mostrar)])
             // raias ocupam toda a largura (sem faixa vazia nas telas grandes)
             let raiaW = visiveis.isEmpty ? 0 : (livre - Self.gap * CGFloat(visiveis.count - 1)) / CGFloat(visiveis.count)
             let total = visiveis.isEmpty ? detW : raiaW * CGFloat(visiveis.count) + Self.gap * CGFloat(visiveis.count - 1) + (detalhe ? detW + Self.gap : 0)
@@ -919,6 +918,14 @@ struct JanelaHoje: View {
                     }
                     .padding(.horizontal, 14).padding(.bottom, 8)
                 }
+                if raias.isEmpty && !detalhe {
+                    VStack(spacing: 10) {
+                        Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 72, height: 72).opacity(0.9)
+                        Text("Tudo em dia").font(.system(size: 17, weight: .semibold))
+                        Text(m.busca.isEmpty ? "Nada pedindo tua atenção agora." : "Nada novo aqui.").font(.system(size: 13)).foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
                 HStack(alignment: .top, spacing: Self.gap) {
                     ForEach(visiveis) { r in
                         Raia(store: store, m: m, titulo: r.titulo, cor: r.cor, itens: r.itens, mostraFazendo: r.mostraFazendo)
@@ -944,6 +951,7 @@ struct JanelaHoje: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(.horizontal, 14).padding(.bottom, 14)
                 .animation(.snappy(duration: 0.28), value: m.sel)
+                }
             }
         }
         .ignoresSafeArea(.container, edges: .top)
