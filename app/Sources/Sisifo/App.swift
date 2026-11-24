@@ -129,8 +129,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         item.button?.action = #selector(statusClicked)
         item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
         item.button?.imagePosition = .imageLeading
-        // sem ícone na barra de menus: o Dock mostra o número de demandas e pula quando chega uma
-        item.isVisible = false
+        // ícone na barra de menus: a pedra com o número de abertas; clicar abre a janela (sem painel)
+        item.isVisible = true
         NotificationCenter.default.addObserver(forName: NSPopover.didCloseNotification, object: popover, queue: .main) { [weak self] _ in
             self?.store.popoverOpen = false
         }
@@ -291,8 +291,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         WakeSound.play()
         NSApp.requestUserAttention(.informationalRequest)
         updateIcon()
-        if Date() > .distantPast { return }   // a animação antiga da barra de menus ficou só como referência
-        // avisa o Vorssaint (notch) pra mostrar o capetinha + a demanda
         animTimer?.invalidate()
         if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
             // sem movimento: só mostra a cápsula parada por uns segundos
@@ -317,7 +315,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     /// capetinha faz uma travessura a cada 30–60 s (sem movimento reduzido)
     func scheduleIdle() {
-        if Date() > .distantPast { return }   // sem ícone na barra de menus, sem travessura
         Timer.scheduledTimer(withTimeInterval: .random(in: 30...60), repeats: false) { [weak self] _ in
             Task { @MainActor in self?.mischief(); self?.scheduleIdle() }
         }
@@ -436,7 +433,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     func updateIcon() {
         let abertas = store.mine.count
         NSApp.dockTile.badgeLabel = abertas > 0 ? "\(abertas)" : nil
-        if Date() > .distantPast { return }
         guard let b = item?.button, animTimer == nil else { return }
         let n = store.mine.count
         if unseen && n == 0 { unseen = false }
