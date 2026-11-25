@@ -12,6 +12,9 @@ enum Daemon {
         var blink: CGFloat = 0, look: CGFloat = 0, grin: CGFloat = 1
     }
 
+    /// tamanho do quadro na barra de menus: pedra com ~15 pt de altura, igual aos ícones do sistema
+    static let barSize: CGFloat = 18
+
     static func image(filled: Bool, size: CGFloat = 18, color: NSColor = .black, template: Bool = true,
                       pose: Pose = Pose(), dot: NSColor? = nil) -> NSImage {
         let img = NSImage(size: NSSize(width: size, height: size), flipped: true) { _ in
@@ -146,7 +149,7 @@ enum WakeAnim {
     }
 
     private static func image(t: Double) -> NSImage {
-        Daemon.image(filled: true, size: 22, color: green, template: false, pose: pose(min(t, duration)))
+        Daemon.image(filled: true, size: Daemon.barSize, color: green, template: false, pose: pose(min(t, duration)))
     }
 
     static func pose(_ t: Double) -> Daemon.Pose {

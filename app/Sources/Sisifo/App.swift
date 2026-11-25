@@ -307,7 +307,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                 var pose = Daemon.Pose()
                 pose.tilt = CGFloat(sin(el * 2 * .pi * 2.4) * 16 * forca)
                 pose.sx = 0.9; pose.sy = 0.9
-                b.image = Self.bake(Daemon.image(filled: true, size: 22, pose: pose), appearance: b.effectiveAppearance)
+                b.image = Self.bake(Daemon.image(filled: true, size: Daemon.barSize, pose: pose), appearance: b.effectiveAppearance)
             }
         }
     }
@@ -499,8 +499,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         if let c = iconCache[key] { img = c } else {
             let pose = idleFrame.map { IdleAnim.pose(Double($0) / 24) } ?? Daemon.Pose()
             let vec = unseen
-                ? Daemon.image(filled: true, size: 22, color: .labelColor, template: false, pose: pose, dot: NSColor(Mood.calm))
-                : Daemon.image(filled: n > 0, size: 22, pose: pose)
+                ? Daemon.image(filled: true, size: Daemon.barSize, color: .labelColor, template: false, pose: pose, dot: NSColor(Mood.calm))
+                : Daemon.image(filled: n > 0, size: Daemon.barSize, pose: pose)
             img = Self.bake(vec, appearance: b.effectiveAppearance)
             iconCache[key] = img
         }
