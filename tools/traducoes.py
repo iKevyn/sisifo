@@ -83,6 +83,8 @@ EN = {
 "Diabinho rindo 😈": "Laughing devil 😈",
 "Dois cliques: responder citando": "Double click: reply quoting",
 "Dá pra editar antes. Vou abrir o Claude Code no Terminal já com esse pedido.": "You can edit it first. Claude Code will open in Terminal with this request.",
+"Dá pra editar antes. Vou abrir o Claude Code já com esse pedido.": "You can edit it first. Claude Code will open with this request.",
+"Abrindo no Claude Code": "Opening in Claude Code",
 "Editar": "Edit",
 "Entrar com Claude": "Sign in with Claude",
 "Entregues hoje": "Delivered today",

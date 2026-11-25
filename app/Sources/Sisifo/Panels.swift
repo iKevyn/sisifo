@@ -182,7 +182,7 @@ struct ClaudeSheet: View {
                 .padding(10)
                 .frame(height: 210)
                 .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.primary.opacity(0.06)))
-            Text("Dá pra editar antes. Vou abrir o Claude Code no Terminal já com esse pedido.")
+            Text("Dá pra editar antes. Vou abrir o Claude Code já com esse pedido.")
                 .font(.cute(11)).foregroundStyle(.secondary)
             HStack {
                 Spacer()
@@ -251,6 +251,23 @@ final class ClaudeController {
         pb.clearContents()
         pb.setString(model.text, forType: .string)
         panel?.orderOut(nil)
+        // Se o app Claude Code (Dashi, dev.kevyn.dashi) estiver instalado, abre nele: aberto → aba nova
+        // via notificação; fechado → abre o app com --ask. Sem ele, segue no Terminal.
+        let dashi = "dev.kevyn.dashi"
+        if !NSRunningApplication.runningApplications(withBundleIdentifier: dashi).isEmpty {
+            DistributedNotificationCenter.default().postNotificationName(
+                Notification.Name("dev.kevyn.dashi.ask"), object: model.text, userInfo: nil, deliverImmediately: true)
+            toast.show(L("Abrindo no Claude Code"))
+            return
+        }
+        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: dashi) {
+            let cfg = NSWorkspace.OpenConfiguration()
+            cfg.arguments = ["--ask", model.text]
+            cfg.activates = true
+            NSWorkspace.shared.openApplication(at: url, configuration: cfg)
+            toast.show(L("Abrindo no Claude Code"))
+            return
+        }
         // abre o Terminal já rodando o Claude Code com o pedido (arquivo .command temporário)
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("sisifo", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
