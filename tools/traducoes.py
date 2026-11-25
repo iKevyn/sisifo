@@ -385,6 +385,9 @@ EN = {
 "Agora não": "Not now",
 "Reabrir em inglês": "Relaunch in English",
 "Reabrir em português": "Relaunch in Portuguese",
+"depois": "later",
+"hoje": "today",
+"%@ pediu": "%@ asked",
 }
 def esc(s): return s.replace('\\','\\\\').replace('"','\\"').replace('\n','\\n')
 import os

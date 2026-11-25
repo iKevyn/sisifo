@@ -40,7 +40,7 @@ struct NotifView: View {
                 HStack(alignment: .top, spacing: 11) {
                     ClientAvatar(url: store.avatarURL(d.jid), name: d.client, isGroup: d.isGroup, size: 40)
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("\(d.client)\(d.who.isEmpty ? "" : " · \(d.who) pediu")").font(.cute(11, .semibold)).foregroundStyle(.secondary).lineLimit(1)
+                        Text(verbatim: "\(d.client)\(d.who.isEmpty ? "" : " · " + String(format: L("%@ pediu"), d.who))").font(.cute(11, .semibold)).foregroundStyle(.secondary).lineLimit(1)
                         Text(d.title).font(.cute(14, .bold)).fixedSize(horizontal: false, vertical: true)
                         if !d.detail.isEmpty { Text(d.detail).font(.cute(12)).foregroundStyle(.secondary).lineLimit(2) }
                         HStack(spacing: 5) {
