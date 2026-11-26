@@ -230,7 +230,7 @@
 "Sísifo · %lld abertas (⌥Z)" = "Sísifo · %lld open (⌥Z)";
 "Sísifo · nada pendente" = "Sísifo · nothing pending";
 "Só mais umas coisas" = "Just a few more things";
-"Só pra saber" = "Just FYI";
+"Só pra saber" = "Just so you know";
 "Só quando tu grava um áudio." = "Only when you record audio.";
 "Só saber" = "FYI";
 "Tchan tchan vilão" = "Villain sting";
@@ -388,3 +388,17 @@
 "depois" = "later";
 "hoje" = "today";
 "%@ pediu" = "%@ asked";
+"Marcar como lido no WhatsApp" = "Mark as read on WhatsApp";
+"Ler no Sísifo também marca como lido no celular (quem mandou vê o azulzinho)" = "Reading in Sísifo also marks it read on your phone (the sender sees the blue ticks)";
+"contexto, nada pra fazer" = "context, nothing to do";
+"ler tudo" = "read all";
+"Marcar tudo como lido" = "Mark all as read";
+"gerar resposta" = "write reply";
+"escrevendo…" = "writing…";
+"Gerar uma resposta no teu jeito de escrever" = "Write a reply in your own style";
+"Não consegui gerar a resposta" = "Couldn't write the reply";
+"Ignorar conversas arquivadas" = "Ignore archived chats";
+"Conversa arquivada no WhatsApp não vira demanda nem aparece como não lida" = "Chats archived on WhatsApp don't become tasks or show as unread";
+"recolher" = "collapse";
+"+1 do mesmo cliente" = "+1 from this client";
+"+%d do mesmo cliente" = "+%d from this client";

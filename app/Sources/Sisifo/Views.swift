@@ -371,8 +371,8 @@ struct PopoverView: View {
             header
             if !store.serverUp {
                 Banner(symbol: "hourglass", text: "Ligando o motorzinho…")
-            } else if !store.connected {
-                Banner(symbol: "wifi.exclamationmark", text: "Ponte do WhatsApp fora do ar. O que chegar aparece quando ela voltar.")
+            } else {
+                PonteAviso(store: store)
             }
             switch store.tab {
             case .zap:
@@ -401,6 +401,7 @@ struct PopoverView: View {
                 ProgressView().controlSize(.mini)
                     .help(store.unreadBusy > 0 ? "Lendo \(store.unreadBusy) conversa(s)" : "Procurando demandas em \(store.scanning) conversa(s)")
             }
+            PonteDot(store: store)
             JanelaButton { store.onOpenWindow?() }
             GearMenu(store: store)
         }

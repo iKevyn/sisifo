@@ -9,7 +9,7 @@ import { createHash } from 'node:crypto'
 import os from 'node:os'
 import path from 'node:path'
 
-import { HOME, APP_PORT, DB_PATH, TOKEN_PATH, BRIDGE, CLAUDE, WA_DATA, nome, papel, equipeTxt, cfg } from './config.mjs'
+import { HOME, APP_PORT, DB_PATH, TOKEN_PATH, BRIDGE, CLAUDE, WA_DATA, nome, papel, equipeTxt, cfg, lerNoWhats, semArquivadas } from './config.mjs'
 const PORT = APP_PORT
 const DIR = path.join(HOME, 'demandas')
 const AVATARS = path.join(DIR, 'avatars')
@@ -118,6 +118,7 @@ function activeChats () {
     SELECT m.chat_jid AS jid, MAX(m.ts) AS lastTs FROM messages m
     WHERE m.type IN ${REAL} AND m.ts > ?
       AND m.chat_jid NOT LIKE '%@broadcast' AND m.chat_jid NOT LIKE '%@newsletter'
+      AND ${semArquivadas(db, 'm.chat_jid')}
     GROUP BY m.chat_jid
     HAVING SUM(CASE WHEN m.from_me = 0 THEN 1 ELSE 0 END) > 0
     ORDER BY lastTs DESC LIMIT 40`).all(since).filter((c) => !st.muted[c.jid])
@@ -134,9 +135,9 @@ const dayOf = (ts) => new Date(ts * 1000).toLocaleDateString('sv-SE', { timeZone
 function askClaude (prompt, model = MODEL) {
   return new Promise((resolve, reject) => {
     if (!CLAUDE) return reject(new Error('claude CLI não encontrado'))
-    const cfg = path.join(DIR, 'empty-mcp.json')
-    if (!existsSync(cfg)) writeFileSync(cfg, '{"mcpServers":{}}')
-    const p = execFile(CLAUDE, ['-p', '--model', model, '--strict-mcp-config', '--mcp-config', cfg, '--tools', ''],
+    const mcpCfg = path.join(DIR, 'empty-mcp.json')
+    if (!existsSync(mcpCfg)) writeFileSync(mcpCfg, '{"mcpServers":{}}')
+    const p = execFile(CLAUDE, ['-p', '--model', model, '--strict-mcp-config', '--mcp-config', mcpCfg, '--tools', ''],
       { timeout: 120e3, maxBuffer: 4e6, cwd: DIR, env: { ...process.env, PATH: `${path.dirname(CLAUDE)}:${process.env.PATH || '/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin'}` } },
       (err, out, errOut) => (err ? reject(new Error((errOut || err.message).slice(0, 300))) : resolve(out.trim())))
     // idioma do app: os textos que aparecem pra pessoa (títulos, resumos, sugestões) saem nele
@@ -224,7 +225,7 @@ Regras:
 - "msg": índice [n] da mensagem onde o pedido foi feito (se pediram de novo, a mais recente).
 ${firstNew > 0 ? '- Mensagens ANTES da linha "mensagens NOVAS" já foram lidas: use só como contexto ou pra atualizar demanda existente. Demanda NOVA só sai de mensagem depois da linha.\n' : ''}- "imgs": índices [n] das mensagens [foto]/[fotos] que são referência visual dessa demanda (print, foto do que mudar, layout de exemplo). [] se nenhuma.
 - "pra_mim": true se é trabalho de ${nome()}, false se é de outra área. "area": "dev", "trafego", "comercial", "design", "operacao" ou "outro".
-- "estado": "aberta" (ainda depende da gente), "respondida" (${equipeTxt()} ou o próprio ${nome()} já respondeu ou resolveu isso na conversa e não sobrou nada pro ${nome()} fazer) ou "esperando_cliente" (a equipe pediu algo pro cliente, tipo e-mail, login, acesso, arquivo, aprovação ou lista, e ainda não chegou; sem isso não dá pra seguir). Na dúvida, "aberta". Se o cliente mandou o que faltava, volta a ser "aberta".
+- "estado": "aberta" (ainda depende da gente), "respondida" (${equipeTxt()} ou o próprio ${nome()} já respondeu ou resolveu isso na conversa e não sobrou nada pro ${nome()} fazer) ou "esperando_cliente" (a equipe pediu algo pro cliente, tipo e-mail, login, acesso, arquivo, aprovação ou lista, e ainda não chegou; sem isso não dá pra seguir). Também é "esperando_cliente" quando o ${nome()} ou a equipe já deu a resposta ou a solução e o próximo passo é do cliente (ele precisa fazer algo do lado dele, testar, aprovar ou decidir), principalmente se o cliente só confirmou ("ok", "blz", "beleza", "fechado", "vou ver", "vou fazer", 👍): um ok desses NÃO reabre a demanda. Na dúvida, "aberta". Se o cliente mandou o que faltava ou pediu algo novo, volta a ser "aberta".
 - "estado_por": em "respondida", primeiro nome de quem respondeu; em "esperando_cliente", primeiro nome de quem vai mandar. Senão null.
 - "estado_motivo": em "esperando_cliente", até 8 palavras do que falta (ex: "e-mails das afiliadas", "login da Nuvemshop"). Senão null.
 - "pedido_novo": true só se for uma demanda que já estava na lista de FEITAS e o cliente pediu de novo ou pediu algo novo sobre ela DEPOIS (mensagem nova dele). Comentário, agradecimento ou elogio sobre o que já foi entregue NÃO é pedido novo.
@@ -330,7 +331,7 @@ ${ds.map((d) => `- id ${d.id}: ${d.title}. ${d.detail || ''}`).join('\n')}
 Pra cada uma, diga o estado:
 - "aberta": ainda depende da gente.
 - "respondida": ${equipeTxt()} ou o próprio ${nome()} já respondeu ou resolveu na conversa e não sobrou nada pro ${nome()} fazer.
-- "esperando_cliente": a equipe pediu algo pro cliente (e-mail, login, acesso, arquivo, aprovação, lista) e ainda não chegou.
+- "esperando_cliente": a equipe pediu algo pro cliente (e-mail, login, acesso, arquivo, aprovação, lista) e ainda não chegou, OU a equipe já deu a solução e o próximo passo é do cliente (um "ok", "blz" ou "beleza" do cliente não reabre).
 Na dúvida, "aberta". "estado_por": quem respondeu (respondida) ou quem vai mandar (esperando), primeiro nome, senão null. "estado_motivo": em esperando_cliente, até 8 palavras do que falta, senão null.
 Responda SÓ JSON: {"r":[{"id":"","estado":"aberta","estado_por":null,"estado_motivo":null}]}`, 'haiku')
       const j = JSON.parse(out.slice(out.indexOf('{'), out.lastIndexOf('}') + 1))
@@ -410,6 +411,10 @@ setInterval(() => { try { detectarFazendo(); checarClaude() } catch (e) { log('f
 setTimeout(() => { try { detectarFazendo(); checarClaude() } catch (e) { log('fazendo', e.message) } }, 4000)
 
 // fila: uma conversa por vez
+// falhou → tenta de novo em 1, 2, 4, 8… min (máx 1 h); desiste depois de 8 tentativas (~4 h)
+st.scanFail ??= {}
+const MAX_TENTATIVAS = 8
+const retryEm = (n) => Math.min(60 * 2 ** n, 3600)
 let scanning = 0
 let working = false
 async function pump () {
@@ -419,11 +424,18 @@ async function pump () {
     try { await classifyOld() } catch (e) { log('classificar falhou', e.message) }
     try { await revisarEstados() } catch (e) { log('revisar estados falhou', e.message) }
     for (;;) {
-      const todo = activeChats().filter((c) => (st.scanned[c.jid] || 0) < c.lastTs)
-      scanning = todo.length
+      const pend = activeChats().filter((c) => (st.scanned[c.jid] || 0) < c.lastTs)
+      scanning = pend.length
+      // conversa que falhou espera um pouco e tenta de novo (antes era marcada como lida e a demanda sumia)
+      const todo = pend.filter((c) => !(st.scanFail[c.jid]?.next > now()))
       if (!todo.length) break
       const c = todo[0]
-      try { await scanChat(c.jid, c.lastTs) } catch (e) { log('scan falhou', c.jid, e.message); st.scanned[c.jid] = c.lastTs; save() }
+      try { await scanChat(c.jid, c.lastTs); delete st.scanFail[c.jid] } catch (e) {
+        const f = st.scanFail[c.jid] = { n: (st.scanFail[c.jid]?.n || 0) + 1, next: now() + retryEm(st.scanFail[c.jid]?.n || 0), err: e.message.slice(0, 200) }
+        log('scan falhou', c.jid, `tentativa ${f.n}`, e.message)
+        if (f.n >= MAX_TENTATIVAS) { log('scan desistiu', c.jid); st.scanned[c.jid] = c.lastTs; delete st.scanFail[c.jid] }
+        save()
+      }
     }
     if (!st.booted) { st.booted = true; for (const d of Object.values(st.demands)) d.notified = true; save() }
   } finally { working = false; scanning = 0 }
@@ -453,7 +465,7 @@ function newMentions () {
   const since = now() - WINDOW_H * 3600
   const like = MY_IDS.map(() => 'm.raw LIKE ?').join(' OR ')
   const rows = db.prepare(`SELECT * FROM messages m WHERE m.from_me = 0 AND m.chat_jid LIKE '%@g.us' AND m.ts > ?
-    AND m.type IN ${REAL} AND (${like}) ORDER BY m.ts`).all(since, ...MY_IDS.map((id) => `%${id}%`))
+    AND m.type IN ${REAL} AND (${like}) AND ${semArquivadas(db, 'm.chat_jid')} ORDER BY m.ts`).all(since, ...MY_IDS.map((id) => `%${id}%`))
   const out = []
   for (const m of rows) {
     if (st.mentions[m.id] || st.muted[m.chat_jid]) continue
@@ -552,6 +564,7 @@ function unreadChats () {
       AND m.chat_jid NOT LIKE '%@broadcast' AND m.chat_jid NOT LIKE '%@newsletter'
       AND (r.marked_unread = 1 OR m.ts > COALESCE(r.read_ts, 0))
       AND m.ts > COALESCE((SELECT MAX(x.ts) FROM messages x WHERE x.chat_jid = m.chat_jid AND x.from_me = 1), 0)
+      AND ${semArquivadas(db, 'm.chat_jid')}
     GROUP BY m.chat_jid ORDER BY lastTs DESC LIMIT 40`).all(since)
     .filter((c) => !st.muted[c.jid] && !(lidoEm(c.jid) >= c.lastTs))
 }
@@ -593,7 +606,7 @@ ${lines}
 ${dem ? `\nDemandas de trabalho já anotadas dessa conversa (não precisa repetir no resumo):\n${dem}\n` : ''}
 Devolva:
 - "resumo": NO MÁXIMO 18 palavras, do que as NÃO LIDAS dizem, tom calmo e direto (cobrança vira pedido simples). Comece por quem falou ("Celso pergunta se…"). Em grupo onde ninguém fala com o ${nome()}, só o assunto em até 12 palavras, sem dizer "ninguém pediu nada".
-- "precisa_resposta": true só se alguém pergunta ou pede algo que o KEVYN deve responder agora (não conta: papo entre outros, agradecimento, ok, figurinha, aviso, coisa já respondida).
+- "precisa_resposta": true só se alguém pergunta ou pede algo que o ${nome()} deve responder agora (não conta: papo entre outros, agradecimento, ok, figurinha, aviso, coisa já respondida).
 - "respondida_por": se a pergunta/pedido das não lidas JÁ foi respondido na conversa por ${equipeTxt()}, o primeiro nome de quem respondeu (aí precisa_resposta = false). Senão null.
 - "esperando_cliente": true se o ponto atual é a equipe esperando o cliente mandar algo (e-mail, login, acesso, arquivo, aprovação) e o cliente ainda não mandou; aí precisa_resposta = false. Se o cliente acabou de mandar o que faltava, false.
 - "falta": se esperando_cliente, até 8 palavras do que falta (ex: "e-mails das afiliadas"). Senão null.
@@ -623,6 +636,35 @@ Responda SÓ JSON: {"resumo":"","precisa_resposta":false,"urgente":false,"tipo":
   }
   save()
 }
+// "gerar resposta" (botão dentro do campo): sugestão sob demanda pra QUALQUER conversa, lida ou não
+async function gerarResposta (jid, hint = '', sobre = '') {
+  const info = chatInfo(jid)
+  if (!info) throw new Error('conversa não encontrada')
+  const isGroup = !!info.is_group
+  const name = cleanName(info.name)
+  const msgs = db.prepare(`SELECT * FROM (SELECT * FROM messages WHERE chat_jid = ? AND type IN ${REAL} ORDER BY ts DESC LIMIT 30) ORDER BY ts`).all(jid)
+  if (!msgs.length) throw new Error('conversa sem mensagens')
+  await transcribeAudios(msgs)
+  const lines = msgs.map((m) => `${fmtDate(m.ts)} ${m.from_me ? nome() : (isGroup ? contactName(m.sender_jid, m.push_name) : name)}: ${msgText(m)}`).join('\n')
+  const out = await askClaude(`Tu escreve a próxima mensagem que ${nome()} vai mandar no WhatsApp. Agora é ${fmtDate(now())}.
+
+Conversa ${isGroup ? `no grupo "${name}"` : `direta com "${name}"`}:
+${lines}
+${sobre ? `\n${nome()} vai responder especificamente esta mensagem: "${String(sobre).slice(0, 500)}"\n` : ''}
+Escreva a resposta do jeito que essa pessoa escreve (exemplos abaixo): mesmo tom, mesmo tamanho, mesmas gírias e pontuação.
+Curta (1 a 2 frases), sem saudação se a conversa já está rolando hoje, sem lista, sem travessão. Responda ao que está pendente na conversa.
+Não prometa prazo que ele não deu; se não souber a resposta técnica, algo como "vou ver isso e já te falo". Não invente fatos.
+${hint ? `Pedido do ${nome()} pra essa resposta: ${hint}\n` : ''}
+Exemplos de mensagens que o ${nome()} mandou (imite o tom):
+${myStyle()}
+
+Responda SÓ JSON: {"texto":""}`, UNREAD_MODEL)
+  const j = JSON.parse(out.slice(out.indexOf('{'), out.lastIndexOf('}') + 1))
+  const texto = String(j.texto || '').replace(/\s[—–]\s/g, ', ').trim()
+  if (!texto) throw new Error('não veio resposta')
+  decide('gerou-resposta', { jid, title: texto.slice(0, 120) })
+  return texto
+}
 let unreadWorking = false
 let unreadBusy = 0
 async function unreadPump () {
@@ -631,13 +673,18 @@ async function unreadPump () {
   try {
     for (;;) {
       // espera 15 s de silêncio na conversa (quem manda 5 mensagens seguidas vira 1 resumo só)
-      const todo = unreadChats().filter((c) => st.unread[c.jid]?.key !== lastMsgOf(c.jid)?.id && now() - c.lastTs > 15)
+      const todo = unreadChats().filter((c) => {
+        const u = st.unread[c.jid]
+        const refazer = u?.failed && (u.tries || 1) < MAX_TENTATIVAS && now() - u.at > retryEm((u.tries || 1) - 1)
+        return (u?.key !== lastMsgOf(c.jid)?.id || refazer) && now() - c.lastTs > 15
+      })
       unreadBusy = todo.length
       if (!todo.length) break
       const c = todo[0]
       try { await summarizeChat(c) } catch (e) {
         log('não lidas falhou', c.jid, e.message)
-        st.unread[c.jid] = { key: lastMsgOf(c.jid)?.id, summary: '', needsReply: false, urgent: false, kind: 'papo', suggestion: null, at: now(), failed: true }
+        const tries = (st.unread[c.jid]?.failed && st.unread[c.jid]?.key === lastMsgOf(c.jid)?.id ? st.unread[c.jid].tries || 1 : 0) + 1
+        st.unread[c.jid] = { key: lastMsgOf(c.jid)?.id, summary: '', needsReply: false, urgent: false, kind: 'papo', suggestion: null, at: now(), failed: true, tries }
       }
     }
     // limpa resumo de conversa que já foi lida
@@ -720,12 +767,142 @@ async function imgPaths (d) {
   return out
 }
 
+// última leitura do /status da ponte (motivo da queda, desde quando, última msg) pro indicador do app
+let ponteInfo = { semResposta: true }
 async function bridgeOk () {
   try {
     const token = readFileSync(TOKEN_PATH, 'utf8').trim()
     const r = await fetch(`${BRIDGE}/status`, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(1500) })
-    return (await r.json()).connected === true
-  } catch { return false }
+    const j = await r.json()
+    ponteInfo = { connected: j.connected === true, since: j.since ?? null, lastRx: j.lastRx ?? null, heartbeat: j.heartbeat ?? null, ultimaQueda: j.ultimaQueda ?? null, ultimoSono: j.ultimoSono ?? null }
+    return j.connected === true
+  } catch { ponteInfo = { semResposta: true, ultimaQueda: ponteInfo.ultimaQueda ?? null }; return false }
+}
+
+/// insights dos últimos 7 dias (só as minhas): entregas por dia, quem mais pediu, tempo até entregar, o que está parado
+function semana () {
+  const agora = now()
+  const minhas = Object.values(st.demands).filter((d) => d.mine !== false && d.status !== 'ignored')
+  const dias = []
+  for (let k = 6; k >= 0; k--) dias.push(dayOf(agora - k * 86400))
+  const ini = agora - 7 * 86400
+  const feitas = minhas.filter((d) => d.status === 'done' && d.doneAt && dias.includes(dayOf(d.doneAt)))
+  const chegaram = minhas.filter((d) => (d.createdAt || d.ts || 0) >= ini)
+  const porDia = dias.map((dia) => ({ dia, feitas: feitas.filter((d) => dayOf(d.doneAt) === dia).length, chegaram: chegaram.filter((d) => dayOf(d.createdAt || d.ts) === dia).length }))
+  const cont = {}
+  for (const d of chegaram) cont[d.client] = (cont[d.client] || 0) + 1
+  const clientes = Object.entries(cont).sort((a, b) => b[1] - a[1]).slice(0, 5)
+    .map(([client, n]) => ({ client, n, jid: chegaram.find((d) => d.client === client)?.jid || null, isGroup: !!chegaram.find((d) => d.client === client)?.isGroup }))
+  // tempo do pedido (mensagem) até eu entregar, só as que eu marquei (auto-feitas distorcem)
+  const tempos = feitas.filter((d) => !d.autoDone && d.ts && d.doneAt > d.ts).map((d) => d.doneAt - d.ts).sort((a, b) => a - b)
+  const mediana = tempos.length ? tempos[Math.floor(tempos.length / 2)] : null
+  const paradas = minhas.filter((d) => d.status === 'open' && !d.state).sort((a, b) => (a.ts || 0) - (b.ts || 0)).slice(0, 3)
+    .map((d) => ({ id: d.id, title: d.title, client: d.client, ts: d.ts, jid: d.jid, isGroup: !!d.isGroup }))
+  return { porDia, entregues: feitas.length, chegaram: chegaram.length, autoFeitas: feitas.filter((d) => d.autoDone).length, medianaSeg: mediana, clientes, paradas }
+}
+
+/// relatório semanal (26/11, pra mostrar pro gestor): tudo do semana() + volume de mensagens, fora do horário,
+/// jornada por dia (1ª e última msg minha em conversa de cliente), pico de demandas simultâneas, comparação com a semana anterior,
+/// lista completa de entregas e o que ficou aberto. Expediente = seg a sex, 9h às 18h (America/Sao_Paulo).
+const TZ = 'America/Sao_Paulo'
+const hourOf = (ts) => Number(new Date(ts * 1000).toLocaleString('en-US', { timeZone: TZ, hour: '2-digit', hour12: false })) % 24
+const dowOf = (ts) => new Date(new Date(ts * 1000).toLocaleString('en-US', { timeZone: TZ })).getDay()
+const foraHorario = (ts) => { const h = hourOf(ts), w = dowOf(ts); return w === 0 || w === 6 || h < 9 || h >= 18 }
+const hm = (ts) => new Date(ts * 1000).toLocaleTimeString('pt-BR', { timeZone: TZ, hour: '2-digit', minute: '2-digit' })
+const mediana = (a) => { if (!a.length) return null; const s = [...a].sort((x, y) => x - y); return s[Math.floor(s.length / 2)] }
+
+function relatorio (diasN = 7) {
+  const agora = now()
+  const dias = []
+  for (let k = diasN - 1; k >= 0; k--) dias.push(dayOf(agora - k * 86400))
+  const ini = new Date(`${dias[0]}T00:00:00-03:00`).getTime() / 1000
+  const iniAnt = ini - diasN * 86400
+  const todas = Object.values(st.demands).filter((d) => d.status !== 'ignored')
+  const minhas = todas.filter((d) => d.mine !== false)
+  const chegouEm = (d) => d.ts || d.createdAt || 0
+  const noPeriodo = (ts, a, b) => ts >= a && ts < b
+  const chegaram = minhas.filter((d) => noPeriodo(chegouEm(d), ini, agora + 1))
+  const feitas = minhas.filter((d) => d.status === 'done' && d.doneAt && noPeriodo(d.doneAt, ini, agora + 1))
+  const chegaramAnt = minhas.filter((d) => noPeriodo(chegouEm(d), iniAnt, ini))
+  const feitasAnt = minhas.filter((d) => d.status === 'done' && d.doneAt && noPeriodo(d.doneAt, iniAnt, ini))
+  const tempos = (l) => l.filter((d) => !d.autoDone && d.ts && d.doneAt > d.ts).map((d) => d.doneAt - d.ts)
+  const abertas = minhas.filter((d) => d.status === 'open')
+
+  // pico de demandas abertas ao mesmo tempo (varredura de eventos dentro do período)
+  const ev = []
+  for (const d of minhas) {
+    const a = chegouEm(d); const b = d.status === 'done' ? (d.doneAt || a) : agora
+    if (b < ini || !a) continue
+    ev.push([Math.max(a, ini), 1], [b, -1])
+  }
+  ev.sort((x, y) => x[0] - y[0] || x[1] - y[1])
+  let cur = 0, pico = 0, picoEm = null
+  for (const [t, v] of ev) { cur += v; if (cur > pico) { pico = cur; picoEm = t } }
+
+  // mensagens nas conversas de cliente (as que já geraram demanda alguma vez)
+  const jids = [...new Set(todas.map((d) => d.jid).filter(Boolean))]
+  let recebidas = 0, enviadas = 0, conversas = 0, enviadasFora = 0
+  const jornada = Object.fromEntries(dias.map((d) => [d, { ini: null, fim: null, enviadas: 0 }]))
+  if (jids.length) {
+    const ph = jids.map(() => '?').join(',')
+    const rows = db.prepare(`SELECT chat_jid, from_me, ts FROM messages WHERE chat_jid IN (${ph}) AND type IN ${REAL} AND ts >= ? ORDER BY ts`).all(...jids, ini)
+    const ativos = new Set()
+    for (const m of rows) {
+      ativos.add(m.chat_jid)
+      if (!m.from_me) { recebidas++; continue }
+      enviadas++
+      if (foraHorario(m.ts)) enviadasFora++
+      const j = jornada[dayOf(m.ts)]; if (!j) continue
+      j.enviadas++; if (!j.ini) j.ini = m.ts; j.fim = m.ts
+    }
+    conversas = ativos.size
+  }
+
+  const porDia = dias.map((dia) => {
+    const j = jornada[dia]
+    return {
+      dia,
+      chegaram: chegaram.filter((d) => dayOf(chegouEm(d)) === dia).length,
+      feitas: feitas.filter((d) => dayOf(d.doneAt) === dia).length,
+      foraHorario: chegaram.filter((d) => dayOf(chegouEm(d)) === dia && foraHorario(chegouEm(d))).length,
+      jornadaIni: j.ini ? hm(j.ini) : null, jornadaFim: j.fim ? hm(j.fim) : null,
+      jornadaSeg: j.ini && j.fim ? j.fim - j.ini : null, enviadas: j.enviadas,
+    }
+  })
+  const porHora = Array.from({ length: 24 }, (_, h) => chegaram.filter((d) => hourOf(chegouEm(d)) === h).length)
+
+  const nomes = [...new Set(chegaram.map((d) => d.client).concat(feitas.map((d) => d.client), abertas.map((d) => d.client)))]
+  const clientes = nomes.map((client) => {
+    const c = chegaram.filter((d) => d.client === client)
+    const f = feitas.filter((d) => d.client === client)
+    const ref = c[0] || f[0] || abertas.find((d) => d.client === client)
+    return { client, pedidos: c.length, entregues: f.length, abertas: abertas.filter((d) => d.client === client).length,
+      urgentes: c.filter((d) => d.urgent).length, foraHorario: c.filter((d) => foraHorario(chegouEm(d))).length,
+      medianaSeg: mediana(tempos(f)), jid: ref?.jid || null, isGroup: !!ref?.isGroup }
+  }).sort((a, b) => b.pedidos - a.pedidos || b.entregues - a.entregues)
+
+  const item = (d) => ({ id: d.id, title: d.title, client: d.client, who: d.who || null, ts: chegouEm(d), doneAt: d.doneAt || null,
+    urgent: !!d.urgent, autoDone: !!d.autoDone, jid: d.jid, isGroup: !!d.isGroup, espera: d.state || null, doing: d.doing || null })
+  const outras = todas.filter((d) => d.mine === false && noPeriodo(chegouEm(d), ini, agora + 1))
+  const porArea = {}
+  for (const d of outras) porArea[d.area || 'outro'] = (porArea[d.area || 'outro'] || 0) + 1
+
+  return {
+    nome: nome(), geradoEm: agora, ini: dias[0], fim: dias[dias.length - 1],
+    entregues: feitas.length, chegaram: chegaram.length, autoFeitas: feitas.filter((d) => d.autoDone).length,
+    medianaSeg: mediana(tempos(feitas)), urgentes: chegaram.filter((d) => d.urgent).length,
+    comPrazo: chegaram.filter((d) => d.due).length,
+    foraHorario: chegaram.filter((d) => foraHorario(chegouEm(d))).length,
+    entreguesFora: feitas.filter((d) => !d.autoDone && foraHorario(d.doneAt)).length,
+    pico, picoEm, clientesAtendidos: new Set(chegaram.concat(feitas).map((d) => d.client)).size,
+    mensagens: { recebidas, enviadas, enviadasFora, conversas },
+    anterior: { entregues: feitasAnt.length, chegaram: chegaramAnt.length, medianaSeg: mediana(tempos(feitasAnt)) },
+    abertasAgora: abertas.length, aguardandoCliente: abertas.filter((d) => d.state === 'esperando_cliente').length,
+    outrasAreas: { total: outras.length, porArea },
+    porDia, porHora, clientes,
+    entregas: feitas.sort((a, b) => a.doneAt - b.doneAt).map(item),
+    abertas: abertas.sort((a, b) => chegouEm(a) - chegouEm(b)).map(item),
+  }
 }
 
 function view (d) {
@@ -773,8 +950,10 @@ http.createServer(async (req, res) => {
       const t = dayOf(now())
       const open = all.filter((d) => d.status === 'open').map(view)
       const doneToday = all.filter((d) => d.status === 'done' && d.doneAt && dayOf(d.doneAt) === t).sort((a, b) => b.doneAt - a.doneAt).map(view)
-      return send(res, 200, { connected: await bridgeOk(), scanning, booted: st.booted, today: t, open, doneToday, mentions: mentionList(), unread: unreadView() })
+      return send(res, 200, { connected: await bridgeOk(), ponte: ponteInfo, scanning, booted: st.booted, today: t, open, doneToday, mentions: mentionList(), unread: unreadView() })
     }
+    if (req.method === 'GET' && url.pathname === '/semana') return send(res, 200, semana())
+    if (req.method === 'GET' && url.pathname === '/relatorio') return send(res, 200, relatorio(Math.min(31, Math.max(1, Number(url.searchParams.get('dias')) || 7))))
     if (req.method === 'GET' && url.pathname === '/mentions') return send(res, 200, mentionList())
     if (req.method === 'GET' && url.pathname === '/avatar') {
       const f = await avatarFile(url.searchParams.get('jid') || '')
@@ -866,7 +1045,7 @@ http.createServer(async (req, res) => {
     }
     // Não lidas: "ok, li" (só aqui), outra sugestão, enviar (só quando eu clico em enviar)
     if (req.method === 'POST' && url.pathname === '/unread/ok' && b.jid) {
-      st.readLocal[b.jid] = b.ok === false ? 0 : now(); decide(b.ok === false ? 'nao-lida-voltar' : (b.motivo === 'respondido' ? 'nao-lida-respondida' : 'nao-lida-ok'), { jid: b.jid }); save()
+      st.readLocal[b.jid] = b.ok === false ? 0 : now(); if (b.ok !== false) lerNoWhats(b.jid); decide(b.ok === false ? 'nao-lida-voltar' : (b.motivo === 'respondido' ? 'nao-lida-respondida' : 'nao-lida-ok'), { jid: b.jid }); save()
       return send(res, 200, { ok: true })
     }
     if (req.method === 'POST' && url.pathname === '/unread/redo' && b.jid) {
@@ -875,11 +1054,15 @@ http.createServer(async (req, res) => {
       await summarizeChat(c, String(b.hint || 'outra opção, diferente da anterior'))
       return send(res, 200, { ok: true })
     }
+    if (req.method === 'POST' && url.pathname === '/gerar' && b.jid) {
+      const texto = await gerarResposta(String(b.jid), String(b.hint || ''), String(b.sobre || ''))
+      return send(res, 200, { texto })
+    }
     if (req.method === 'POST' && url.pathname === '/reply' && b.jid && b.text) {
       const text = String(b.text).trim()
       await sendReply(b.jid, text)
       decide('respondeu', { jid: b.jid, title: text.slice(0, 120) }, { suggested: st.unread[b.jid]?.suggestion || null })
-      st.readLocal[b.jid] = now(); delete st.unread[b.jid]; save()
+      st.readLocal[b.jid] = now(); delete st.unread[b.jid]; lerNoWhats(b.jid); save()
       return send(res, 200, { ok: true })
     }
     if (req.method === 'POST' && url.pathname === '/mute' && b.jid) {

@@ -789,6 +789,32 @@ struct AudioBubble: View {
     }
 }
 
+/// botão ✨ que mora dentro do campo vazio, ao lado do placeholder: escreve a resposta no teu estilo
+struct BotaoGerar: View {
+    var gerando = false
+    var compacto = false
+    let acao: () -> Void
+    @StateObject private var h = Hover()
+    var body: some View {
+        Button(action: acao) {
+            HStack(spacing: 4) {
+                if gerando { ProgressView().controlSize(.mini) } else { Image(systemName: "sparkles").font(.system(size: 10, weight: .bold)) }
+                if !compacto || gerando { Text(gerando ? L("escrevendo…") : L("gerar resposta")).font(.system(size: 11, weight: .semibold)) }
+            }
+            .foregroundStyle(Mood.claude)
+            .padding(.horizontal, compacto && !gerando ? 0 : 9)
+            .frame(width: compacto && !gerando ? 24 : nil, height: 24)
+            .background(Capsule().fill(Mood.claude.opacity(h.on ? 0.18 : 0.11)))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .disabled(gerando)
+        .onHover { on in withAnimation(.easeOut(duration: 0.12)) { h.on = on } }
+        .help(L("Gerar uma resposta no teu jeito de escrever"))
+        .transition(.opacity.combined(with: .scale(scale: 0.9)))
+    }
+}
+
 struct Composer: View {
     @ObservedObject var store: ChatStore
     let jid: String
@@ -891,6 +917,18 @@ struct Composer: View {
                 .onAppear { if store.focar == jid { DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { foco = true; store.focar = nil } } }
                 .onChange(of: store.focar) { _, j in if j == jid { foco = true; store.focar = nil } }
                 .onSubmit { Task { await enviar() } }
+            // campo vazio: ✨ gerar resposta dentro do campo, ao lado do placeholder
+            if !temTexto && store.anexos.isEmpty {
+                BotaoGerar(gerando: store.gerando.contains(jid), compacto: compact) {
+                    let alvo = jid
+                    let sobre = store.replyTo.flatMap { $0.jid == alvo ? $0.text : nil } ?? ""
+                    Task {
+                        if let t = await store.gerarResposta(alvo, sobre: sobre), store.selected == alvo || jid == alvo {
+                            ui.texto = t; foco = true
+                        }
+                    }
+                }
+            }
             Button { ui.showStickers.toggle() } label: {
                 Image(systemName: ui.showStickers ? "face.smiling.inverse" : "face.smiling")
                     .font(.system(size: 14))

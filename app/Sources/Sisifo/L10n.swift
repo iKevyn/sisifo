@@ -23,3 +23,20 @@ enum AvisoMensagens {
         set { UserDefaults.standard.set(newValue, forKey: chave) }
     }
 }
+
+/// "Marcar como lido no WhatsApp": quando ligado, "ok, li", abrir a conversa e responder no Sísifo
+/// mandam o azulzinho e tiram o "não lida" do celular. Fica no config.json (os servidores leem de lá).
+/// "Ignorar conversas arquivadas": arquivada no WhatsApp não vira demanda nem não-lida. Padrão ligado.
+enum IgnorarArquivadas {
+    static var ligado: Bool {
+        get { SisifoConfig.load().ignorarArquivadas != false }
+        set { var c = SisifoConfig.load(); c.ignorarArquivadas = newValue; c.save() }
+    }
+}
+
+enum LidoNoWhats {
+    static var ligado: Bool {
+        get { SisifoConfig.load().marcarLidoWhats == true }
+        set { var c = SisifoConfig.load(); c.marcarLidoWhats = newValue; c.save() }
+    }
+}

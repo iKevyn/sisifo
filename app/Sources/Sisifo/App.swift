@@ -221,6 +221,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                     let v = String(cmd.dropFirst(6))
                     UserDefaults.standard.set(v, forKey: "sound")
                     WakeSound.play(v)
+                } else if cmd == "relatorio" {
+                    await Relatorio.gerar(self.store)
                 } else if cmd == "test" {
                     self.wake("Nova demanda de Teste")
                 } else if cmd.hasPrefix("janelaPrint:") {
@@ -420,12 +422,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             i.image = NSImage(systemSymbolName: icone, accessibilityDescription: nil)
             menu.addItem(i)
         }
+        let rel = item(Idioma.ingles ? "Weekly report (PDF)" : "Relatório da semana (PDF)", #selector(gerarRelatorio))
+        rel.image = NSImage(systemSymbolName: "doc.richtext", accessibilityDescription: nil)
+        menu.addItem(rel)
         menu.addItem(.separator())
         // som (um só: eco do morro)
         menu.addItem(item(L("Som de demanda nova"), #selector(alternarSom), on: WakeSound.current != "off"))
         let msgs = item(L("Avisar mensagens novas"), #selector(alternarAvisoMensagens), on: AvisoMensagens.ligado)
         msgs.toolTip = L("Desliga se o WhatsApp do Mac já te avisa, pra não duplicar")
         menu.addItem(msgs)
+        let lido = item(L("Marcar como lido no WhatsApp"), #selector(alternarLidoWhats), on: LidoNoWhats.ligado)
+        lido.toolTip = L("Ler no Sísifo também marca como lido no celular (quem mandou vê o azulzinho)")
+        menu.addItem(lido)
+        let arq = item(L("Ignorar conversas arquivadas"), #selector(alternarArquivadas), on: IgnorarArquivadas.ligado)
+        arq.toolTip = L("Conversa arquivada no WhatsApp não vira demanda nem aparece como não lida")
+        menu.addItem(arq)
         // aparência
         let apItem = NSMenuItem(title: L("Aparência"), action: nil, keyEquivalent: "")
         let ap = NSMenu()
@@ -450,7 +461,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         self.item.button?.performClick(nil)
         self.item.menu = nil
     }
+    @objc func gerarRelatorio() { Task { @MainActor in await Relatorio.gerar(self.store) } }
     @objc func alternarAvisoMensagens() { AvisoMensagens.ligado.toggle() }
+    @objc func alternarLidoWhats() { LidoNoWhats.ligado.toggle() }
+    @objc func alternarArquivadas() { IgnorarArquivadas.ligado.toggle() }
     @objc func alternarSom() {
         let ligar = WakeSound.current == "off"
         UserDefaults.standard.set(ligar ? WakeSound.padrao : "off", forKey: "sound")
@@ -560,8 +574,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             var r = URLRequest(url: URL(string: "\(Sisifo.bridgeBase)/status")!)
             r.timeoutInterval = 2
             if let (_, resp) = try? await URLSession.shared.data(for: r), (resp as? HTTPURLResponse) != nil { return }
+            // Ponte do launchd é a dona: subir uma segunda com o mesmo auth faz o WhatsApp
+            // derrubar a sessão (conflict / device_removed). Só acorda o job e espera.
+            if Self.launchdBridgeLoaded() {
+                Self.launchctl(["kickstart", Self.launchdBridgeJob])  // sem -k: não mata se já estiver rodando
+                try? await Task.sleep(nanoseconds: 15_000_000_000)
+                if !quitting { startBridgeIfNeeded() }
+                return
+            }
             bridge = Sisifo.spawn("bridge/src/bridge.js", log: "whatsapp", quitting: { [weak self] in self?.quitting ?? true }) { [weak self] in self?.startBridgeIfNeeded() }
         }
+    }
+
+    nonisolated static let launchdBridgeJob = "gui/\(getuid())/com.wave.whatsapp-bridge"
+
+    nonisolated static func launchdBridgeLoaded() -> Bool { launchctl(["print", launchdBridgeJob]) == 0 }
+
+    @discardableResult
+    nonisolated static func launchctl(_ args: [String]) -> Int32 {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+        p.arguments = args
+        p.standardOutput = FileHandle.nullDevice
+        p.standardError = FileHandle.nullDevice
+        guard (try? p.run()) != nil else { return -1 }
+        p.waitUntilExit()
+        return p.terminationStatus
     }
 
     func startServerIfNeeded() {

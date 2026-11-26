@@ -40,6 +40,9 @@ export function openDb () {
   // Colunas novas (mídia): raw = mensagem original p/ baixar depois; transcript = áudio transcrito.
   const cols = new Set(db.prepare('PRAGMA table_info(messages)').all().map(c => c.name))
   for (const c of ['raw', 'media_path', 'transcript']) if (!cols.has(c)) db.exec(`ALTER TABLE messages ADD COLUMN ${c} TEXT`)
+  // arquivada no WhatsApp (1/0); null = ainda não sei
+  const chatCols = new Set(db.prepare('PRAGMA table_info(chats)').all().map(c => c.name))
+  if (!chatCols.has('archived')) db.exec('ALTER TABLE chats ADD COLUMN archived INTEGER')
   return db
 }
 

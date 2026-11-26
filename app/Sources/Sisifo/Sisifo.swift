@@ -133,6 +133,10 @@ struct SisifoConfig: Codable {
     var onboarded: Bool = false
     /// "pt" ou "en" (o servidor pede pro Claude escrever nesse idioma)
     var idioma: String? = nil
+    /// ler no Sísifo também marca como lido no WhatsApp (azulzinho). nil = desligado
+    var marcarLidoWhats: Bool? = nil
+    /// conversa arquivada no WhatsApp não entra no Sísifo. nil = ligado
+    var ignorarArquivadas: Bool? = nil
 
     static var url: URL { Sisifo.home.appendingPathComponent("config.json") }
     static func load() -> SisifoConfig {

@@ -108,6 +108,8 @@ final class JanelaModel: ObservableObject {
     var onTema: (() -> Void)?
     @Published var secao: Secao? = .mine
     @Published var sel: String?
+    /// última foto do item aberto (layout Hoje), pra ele não sumir se sair da lista sozinho
+    var foto: ItemFeed?
     /// popover "entregues hoje" do topo
     @Published var entregues = false
     /// seleção que a troca de seção não pode apagar (abrir conversa direto)
@@ -227,13 +229,14 @@ struct JanelaView: View {
     @ViewBuilder var status: some View {
         let (sym, txt, cor): (String, String, Color) =
             !store.serverUp ? ("hourglass", "Ligando o motorzinho…", Mood.warm)
-            : !store.connected ? ("wifi.exclamationmark", "Ponte do WhatsApp fora", Mood.warm)
+            : !store.connected ? ("wifi.exclamationmark", store.ponteResumo, Mood.warm)
             : store.scanning > 0 ? ("text.magnifyingglass", store.scanning == 1 ? "Lendo 1 conversa" : "Lendo \(store.scanning) conversas", .secondary)
             : ("checkmark.circle.fill", "Tudo em dia", Mood.calm)
         HStack(spacing: 6) {
             Image(systemName: sym).foregroundStyle(cor)
             Text(L(txt)).foregroundStyle(.secondary)
             Spacer()
+            PonteDot(store: store)
         }
         .font(.cute(11, .medium))
         .padding(.horizontal, 12).padding(.vertical, 7)
@@ -560,6 +563,9 @@ struct Compositor<Rodape: View>: View {
     var pensando = false
     var erro: String? = nil
     var chips: [(String, () -> Void)] = []
+    /// ✨ dentro do campo vazio (gerar resposta); `gerando` mostra "escrevendo…"
+    var gerar: (() -> Void)? = nil
+    var gerando = false
     let enviar: () -> Void
     @ViewBuilder let rodape: () -> Rodape
 
@@ -591,6 +597,11 @@ struct Compositor<Rodape: View>: View {
                     .padding(.horizontal, 12).padding(.vertical, 9)
                     .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(nsColor: .textBackgroundColor).opacity(0.85)))
                     .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.primary.opacity(0.08), lineWidth: 1))
+                    .overlay(alignment: .trailing) {
+                        if let g = gerar, vazio && !pensando || gerando {
+                            BotaoGerar(gerando: gerando, acao: g).padding(.trailing, 6)
+                        }
+                    }
                     .disabled(enviando)
                 Button(action: enviar) {
                     Group {
@@ -954,6 +965,8 @@ struct DetalheZap: View {
                 chips: [("outra sugestão", { store.redo(c) }),
                         ("mais curta", { store.redo(c, hint: "bem mais curta, 1 frase") }),
                         ("vou ver e respondo", { store.drafts[c.jid] = c.isGroup ? "Vou ver isso e já te falo" : "vou ver isso e ja te falo" })],
+                gerar: { store.drafts[c.jid] = nil; store.redo(c) },
+                gerando: false,
                 enviar: { store.reply(c) }
             ) {
                 Quieto(texto: "ok, li", sym: "checkmark", tint: Mood.calm) { store.unreadOK(c) }
@@ -1019,8 +1032,11 @@ struct LinhaMarcacao: View {
 
 struct DetalheMarcacao: View {
     @ObservedObject var store: Store
+    /// pra ver o "escrevendo…" do ✨ gerar resposta
+    @ObservedObject var zp: ChatStore
     let m: Mention
     var chave: String { "m:" + m.id }
+    init(store: Store, m: Mention) { self.store = store; self.zp = store.zp; self.m = m }
 
     var body: some View {
         let (label, symbol, tint) = m.kindLabel
@@ -1063,6 +1079,11 @@ struct DetalheMarcacao: View {
                 erro: store.sendError[chave],
                 chips: [("vou ver e respondo", { store.drafts[chave] = "Vou ver isso e já te falo" }),
                         ("feito", { store.drafts[chave] = "Feito!" })],
+                gerar: {
+                    let k = chave
+                    Task { if let t = await store.zp.gerarResposta(m.jid, sobre: m.quote) { store.drafts[k] = t } }
+                },
+                gerando: zp.gerando.contains(m.jid),
                 enviar: { store.replyMention(m) }
             ) {
                 if m.ok {

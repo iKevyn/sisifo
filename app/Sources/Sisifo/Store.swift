@@ -189,7 +189,7 @@ struct UnreadChat: Codable, Identifiable, Equatable {
 }
 struct UnreadResp: Codable, Equatable { let busy: Int; let needReply: Int; let items: [UnreadChat] }
 
-private struct DemandsResp: Codable { let connected: Bool; let scanning: Int; let booted: Bool; let open: [Demand]; let doneToday: [Demand]; var mentions: MentionsResp? = nil; var unread: UnreadResp? = nil }
+private struct DemandsResp: Codable { let connected: Bool; let scanning: Int; let booted: Bool; let open: [Demand]; let doneToday: [Demand]; var mentions: MentionsResp? = nil; var unread: UnreadResp? = nil; var ponte: PonteInfo? = nil }
 private struct PromptResp: Codable { let text: String }
 
 enum Tab: String { case zap, open, mentions }
@@ -238,6 +238,9 @@ final class Store: ObservableObject {
     @Published var open: [Demand] = []
     @Published var doneToday: [Demand] = []
     @Published var connected = false
+    @Published var ponte: PonteInfo? = nil
+    @Published var ponteReconectando = false
+    @Published var ponteErro: String? = nil
     @Published var serverUp = false
     @Published var scanning = 0
     @Published var booted = true
@@ -315,6 +318,8 @@ final class Store: ObservableObject {
     var aguardando: [Demand] { open.filter { $0.mine && $0.espera != nil } }
     /// conversas onde acabei de mandar mensagem pelo app: o chat fica aberto pra eu mandar mais
     @Published var segurar: Set<String> = []
+    /// itens que EU tirei (feito, ok li, ignorar…): o painel aberto deles pode fechar. Qualquer outro sumiço mantém o painel aberto.
+    var tireiEu: Set<String> = []
     var others: [Demand] { open.filter { !$0.mine }.sorted { $0.ts < $1.ts } }
 
     var sortedOpen: [Demand] {
@@ -354,7 +359,8 @@ final class Store: ObservableObject {
             let x = try JSONDecoder().decode(DemandsResp.self, from: d)
             // só publica o que mudou (cada atribuição invalidava o SwiftUI do painel a cada 5 s)
             if !serverUp { serverUp = true }
-            if connected != x.connected { connected = x.connected }
+            if connected != x.connected { connected = x.connected; if x.connected { ponteErro = nil } }
+            if ponte != x.ponte { ponte = x.ponte }
             if scanning != x.scanning { scanning = x.scanning }
             if booted != x.booted { booted = x.booted }
             if x.open != open { open = x.open }
@@ -416,6 +422,7 @@ final class Store: ObservableObject {
         Task { for id in ids { await post("/done", ["id": id]) }; await refresh() }
     }
     func done(_ d: Demand) {
+        tireiEu.insert("d:" + d.id)
         withAnimation(.spring(response: 0.35)) { open.removeAll { $0.id == d.id } }
         onChange?()
         Task { await post("/done", ["id": d.id]); await refresh() }
@@ -435,6 +442,7 @@ final class Store: ObservableObject {
         Task { await post("/reopen", ["id": d.id]); await refresh() }
     }
     func ignore(_ d: Demand) {
+        tireiEu.insert("d:" + d.id)
         withAnimation(.spring(response: 0.35)) { open.removeAll { $0.id == d.id } }
         onChange?()
         Task { await post("/ignore", ["id": d.id]); await refresh() }
@@ -451,6 +459,7 @@ final class Store: ObservableObject {
         Task { await post("/mentions/seen", [:]) }
     }
     func mentionOK(_ m: Mention, _ ok: Bool = true) {
+        if ok { tireiEu.insert("m:" + m.id) }
         withAnimation(.spring(response: 0.35)) {
             if let i = mentions.firstIndex(where: { $0.id == m.id }) {
                 let x = mentions[i]
@@ -469,6 +478,7 @@ final class Store: ObservableObject {
     var toKnow: [UnreadChat] { unread.filter { !$0.needsReply || $0.espera != nil } }
     func draft(_ c: UnreadChat) -> String { drafts[c.jid] ?? c.suggestion ?? "" }
     func unreadOK(_ c: UnreadChat, motivo: String? = nil) {
+        tireiEu.insert("u:" + c.jid)
         withAnimation(.spring(response: 0.35)) { unread.removeAll { $0.jid == c.jid } }
         drafts[c.jid] = nil
         onChange?()
@@ -477,6 +487,7 @@ final class Store: ObservableObject {
     }
     func unreadOKAll(_ list: [UnreadChat]) {
         let ids = Set(list.map(\.jid))
+        tireiEu.formUnion(ids.map { "u:" + $0 })
         withAnimation(.spring(response: 0.35)) { unread.removeAll { ids.contains($0.jid) } }
         onChange?()
         Task { for j in ids { await post("/unread/ok", ["jid": j]) }; await refresh() }
@@ -659,6 +670,7 @@ final class Store: ObservableObject {
     }
 
     func mute(_ d: Demand) {
+        tireiEu.insert("d:" + d.id)
         withAnimation(.spring(response: 0.35)) { open.removeAll { $0.jid == d.jid } }
         onChange?()
         Task { await post("/mute", ["jid": d.jid]); await refresh() }

@@ -342,6 +342,7 @@ struct TopoPop<Meio: View>: View {
             meio
             Spacer(minLength: 4)
             if store.scanning > 0 || store.unreadBusy > 0 { ProgressView().controlSize(.mini) }
+            PonteDot(store: store)
             JanelaButton { store.onOpenWindow?() }
             GearMenu(store: store)
         }
@@ -520,8 +521,8 @@ struct AvisoPonte: View {
     var body: some View {
         if !store.serverUp {
             Banner(symbol: "hourglass", text: "Ligando o motorzinho…")
-        } else if !store.connected {
-            Banner(symbol: "wifi.exclamationmark", text: "Ponte do WhatsApp fora do ar. O que chegar aparece quando ela voltar.")
+        } else {
+            PonteAviso(store: store)
         }
     }
 }
@@ -662,6 +663,10 @@ struct MenuJanela: View {
                 set: { on in som = on ? WakeSound.padrao : "off"; if on { WakeSound.play(WakeSound.padrao) } }))
             Toggle("Avisar mensagens novas", isOn: Binding(get: { AvisoMensagens.ligado }, set: { AvisoMensagens.ligado = $0 }))
                 .help("Desliga se o WhatsApp do Mac já te avisa, pra não duplicar")
+            Toggle("Marcar como lido no WhatsApp", isOn: Binding(get: { LidoNoWhats.ligado }, set: { LidoNoWhats.ligado = $0 }))
+                .help("Ler no Sísifo também marca como lido no celular (quem mandou vê o azulzinho)")
+            Toggle("Ignorar conversas arquivadas", isOn: Binding(get: { IgnorarArquivadas.ligado }, set: { IgnorarArquivadas.ligado = $0 }))
+                .help("Conversa arquivada no WhatsApp não vira demanda nem aparece como não lida")
             Toggle("Abrir quando ligar o Mac", isOn: Binding(
                 get: { SMAppService.mainApp.status == .enabled },
                 set: { on in if on { try? SMAppService.mainApp.register() } else { try? SMAppService.mainApp.unregister() } }))
@@ -727,7 +732,9 @@ struct JanelaCaixa: View {
     @ObservedObject var m: JanelaModel
     var body: some View {
         let itens = store.feed.filter { (store.chip == nil || $0.tipo == store.chip) && bateBusca($0, m.busca) }
-        let sel = itens.first { $0.id == m.sel }
+        let achado = itens.first { $0.id == m.sel }
+        let _ = { if let a = achado { m.foto = a } }()
+        let sel = achado ?? (m.foto?.id == m.sel ? m.foto : nil)
         VStack(spacing: 0) {
             TopoJanela(store: store, m: m) {
                 FiltroSeg(store: zp).frame(width: 270)
@@ -862,7 +869,10 @@ struct JanelaHoje: View {
 
     var body: some View {
         let todos = store.feed.filter { bateBusca($0, m.busca) }
-        let sel = todos.first { $0.id == m.sel }
+        // item aberto que saiu da lista sem eu tirar (lido no celular, IA reclassificou…): segue aberto até eu fechar
+        let achado = todos.first { $0.id == m.sel }
+        let _ = { if let a = achado { m.foto = a } }()
+        let sel = achado ?? (m.foto?.id == m.sel ? m.foto : nil)
         // conversa que segue aberta depois de eu responder (o item saiu das não lidas)
         let chatJid: String? = m.sel.flatMap { $0.hasPrefix("c:") ? String($0.dropFirst(2)) : nil }
         let detalhe = sel != nil || chatJid != nil
@@ -889,16 +899,29 @@ struct JanelaHoje: View {
             let visiveis = soDetalhe || raias.isEmpty ? [] : Array(raias[inicio..<(inicio + mostrar)])
             // raias ocupam toda a largura (sem faixa vazia nas telas grandes)
             let raiaW = visiveis.isEmpty ? 0 : (livre - Self.gap * CGFloat(visiveis.count - 1)) / CGFloat(visiveis.count)
+            // "Só saber" é acompanhamento: mais estreita (78%), as etapas dividem o que sobra
+            let temSaber = visiveis.count > 1 && visiveis.contains { $0.titulo == "Só saber" }
+            let saberW = temSaber ? max(260, raiaW * 0.78) : raiaW
+            let etapaW = temSaber ? (raiaW * CGFloat(visiveis.count) - saberW) / CGFloat(visiveis.count - 1) : raiaW
+            let larg: (RaiaInfo) -> CGFloat = { $0.titulo == "Só saber" ? saberW : etapaW }
             let total = visiveis.isEmpty ? detW : raiaW * CGFloat(visiveis.count) + Self.gap * CGFloat(visiveis.count - 1) + (detalhe ? detW + Self.gap : 0)
 
             VStack(spacing: 0) {
                 TopoJanela(store: store, m: m) {
-                    Text("Hoje").font(.system(size: 17, weight: .bold))
+                    Saudacao()
                         .help(Date().formatted(Date.FormatStyle(locale: Locale(identifier: Idioma.ingles ? "en_US" : "pt_BR")).weekday(.wide).day().month(.wide)))
-                    if W >= 1060 { ResumoDia(store: store, m: m) }
+                        .layoutPriority(-1)
+                    PonteDot(store: store)
                 } centro: {
                     FiltroSeg(store: zp).frame(width: W < 980 ? 250 : 270)
                 }
+                // insights: hoje + semana
+                HStack(spacing: 8) {
+                    ResumoDia(store: store, m: m)
+                    ResumoSemana(store: store)
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 14).padding(.bottom, 10)
                 AvisoPonte(store: store).padding(.horizontal, 14)
                 if abas {
                     // janela estreita: abinhas das raias, as visíveis ficam acesas
@@ -930,9 +953,16 @@ struct JanelaHoje: View {
                 } else {
                 HStack(alignment: .top, spacing: Self.gap) {
                     ForEach(visiveis) { r in
-                        Raia(store: store, m: m, titulo: r.titulo, cor: r.cor, itens: r.itens, mostraFazendo: r.mostraFazendo)
-                            .frame(width: raiaW)
-                            .transition(.opacity)
+                        Group {
+                            if r.titulo == "Só saber" {
+                                // contexto, não etapa: feed leve, sem caixa
+                                RaiaSaber(store: store, m: m, itens: r.itens)
+                            } else {
+                                Raia(store: store, m: m, titulo: r.titulo, cor: r.cor, itens: r.itens, mostraFazendo: r.mostraFazendo)
+                            }
+                        }
+                        .frame(width: larg(r))
+                        .transition(.opacity)
                     }
                     if let jid = chatJid {
                         painel(largura: soDetalhe ? largura : detW) {
@@ -990,11 +1020,105 @@ struct JanelaHoje: View {
 /// senão segue o comportamento antigo (`senao`)
 @MainActor func manterConversa(_ sel: String?, ids: [String], store: Store, senao: String?) -> String? {
     guard let s = sel, !ids.contains(s), !s.hasPrefix("c:") else { return sel }
-    if s.hasPrefix("u:") {
-        let jid = String(s.dropFirst(2))
-        if store.segurar.contains(jid) { return "c:" + jid }
+    let jid = String(s.dropFirst(2))
+    if s.hasPrefix("u:") && store.segurar.contains(jid) { return "c:" + jid }
+    // eu tirei (feito, ok li…): fecha / vai pro próximo como antes
+    if store.tireiEu.contains(s) { return senao }
+    // sumiu sozinho: não lida vira a conversa (fica aberta); demanda/marcação segue aberta pela foto do item
+    if s.hasPrefix("u:") { return "c:" + jid }
+    return s
+}
+
+/// "Só saber": não é etapa, é contexto. Sem caixa nem cartões: uma linha do tempo leve,
+/// texto secundário, "ok, li" só no hover e "marcar tudo como lido" no topo.
+struct RaiaSaber: View {
+    @ObservedObject var store: Store
+    @ObservedObject var m: JanelaModel
+    let itens: [ItemFeed]
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: "eye").font(.system(size: 11, weight: .semibold)).foregroundStyle(.tertiary)
+                Text("Só pra saber").font(.system(size: 12, weight: .semibold)).foregroundStyle(.secondary)
+                Text("\(itens.count)").font(.system(size: 11, weight: .semibold)).foregroundStyle(.tertiary)
+                Spacer(minLength: 4)
+                let lidas = itens.compactMap(\.unread).filter { !$0.pending }
+                if lidas.count > 1 {
+                    Button { store.unreadOKAll(lidas) } label: {
+                        Text("ler tudo").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
+                            .padding(.horizontal, 9).frame(height: 22)
+                            .background(Capsule().stroke(Color.primary.opacity(0.12)))
+                    }
+                    .buttonStyle(.plain).help("Marcar tudo como lido")
+                }
+            }
+            .padding(.horizontal, 6).padding(.top, 4)
+            Text("contexto, nada pra fazer").font(.system(size: 11)).foregroundStyle(.tertiary).padding(.horizontal, 6)
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(itens.enumerated()), id: \.element.id) { k, i in
+                        LinhaSaber(store: store, i: i, ultima: k == itens.count - 1, selecionado: m.sel == i.id) {
+                            withAnimation(.snappy) { m.sel = i.id }
+                        }
+                    }
+                }
+                .padding(.top, 4)
+            }
+            .scrollIndicators(.never)
+        }
+        .padding(.horizontal, 4).padding(.vertical, 10)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        // sem fundo: só um fio à esquerda separando das etapas
+        .overlay(alignment: .leading) { Rectangle().fill(Color.primary.opacity(0.07)).frame(width: 1).padding(.vertical, 8).offset(x: -6) }
     }
-    return senao
+}
+
+/// linha da "Só saber": bolinha + fio (linha do tempo), avatar pequeno, nome · tempo, resumo em cinza
+struct LinhaSaber: View {
+    @ObservedObject var store: Store
+    let i: ItemFeed
+    var ultima = false
+    var selecionado = false
+    var abrir: () -> Void
+    @StateObject private var h = Hover()
+    var body: some View {
+        HStack(alignment: .top, spacing: 9) {
+            // linha do tempo
+            VStack(spacing: 0) {
+                ClientAvatar(url: store.avatarURL(i.jid), name: i.nome, isGroup: i.grupo, size: 22)
+                    .opacity(h.on || selecionado ? 1 : 0.75)
+                if !ultima { Rectangle().fill(Color.primary.opacity(0.08)).frame(width: 1.5).frame(maxHeight: .infinity).padding(.top, 4) }
+            }
+            .frame(width: 22)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 5) {
+                    Text(i.nome).font(.system(size: 12, weight: .semibold)).foregroundStyle(.secondary).lineLimit(1)
+                    if let c = i.unread, c.count > 1 {
+                        Text("· \(c.count)").font(.system(size: 11)).foregroundStyle(.tertiary)
+                    }
+                    Spacer(minLength: 4)
+                    if (h.on || selecionado), let c = i.unread {
+                        Button { store.unreadOK(c) } label: {
+                            Image(systemName: "checkmark").font(.system(size: 10, weight: .bold)).foregroundStyle(Mood.calm)
+                                .frame(width: 20, height: 20).background(Circle().fill(Mood.calm.opacity(0.14)))
+                        }
+                        .buttonStyle(.plain).help("ok, li")
+                    } else {
+                        Text(i.ago).font(.system(size: 10.5)).foregroundStyle(.tertiary).monospacedDigit()
+                    }
+                }
+                Text(i.resumo).font(.system(size: 12)).foregroundStyle(.secondary)
+                    .lineLimit(selecionado ? 6 : 3).fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.bottom, ultima ? 4 : 14)
+        }
+        .padding(.horizontal, 6).padding(.top, 6)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
+            .fill(Color.primary.opacity(selecionado ? 0.07 : (h.on ? 0.035 : 0))))
+        .contentShape(Rectangle())
+        .onHover { on in withAnimation(.easeOut(duration: 0.12)) { h.on = on } }
+        .onTapGesture(perform: abrir)
+    }
 }
 
 struct Raia: View {
@@ -1016,8 +1140,13 @@ struct Raia: View {
                     if itens.isEmpty {
                         Text("nada aqui").font(.system(size: 12)).foregroundStyle(.tertiary).frame(maxWidth: .infinity).padding(.vertical, 24)
                     }
-                    ForEach(itens) { i in
-                        CartaoFeed(store: store, i: i, compacto: true, selecionado: m.sel == i.id, mostraFazendo: mostraFazendo) { withAnimation(.snappy) { m.sel = i.id } }
+                    // demandas do mesmo cliente viram uma pilha só (o cartão de cima fica igual)
+                    ForEach(pilhas(itens), id: \.first!.id) { g in
+                        if g.count == 1 {
+                            CartaoFeed(store: store, i: g[0], compacto: true, selecionado: m.sel == g[0].id, mostraFazendo: mostraFazendo) { withAnimation(.snappy) { m.sel = g[0].id } }
+                        } else {
+                            PilhaCliente(store: store, m: m, itens: g, mostraFazendo: mostraFazendo)
+                        }
                     }
                 }
             }
@@ -1026,5 +1155,78 @@ struct Raia: View {
         .padding(10)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(Color.primary.opacity(0.04)))
+    }
+}
+
+/// agrupa por cliente mantendo a ordem (a pilha entra onde estava o primeiro item dela);
+/// só demandas juntam, resposta/marcação seguem soltas
+func pilhas(_ itens: [ItemFeed]) -> [[ItemFeed]] {
+    var ordem: [String] = [], grupos: [String: [ItemFeed]] = [:]
+    for i in itens {
+        var k = i.id
+        if let d = i.demand {
+            let c = d.client.trimmingCharacters(in: .whitespaces).lowercased()
+            k = "c:" + (c.isEmpty ? d.jid : c)
+        }
+        if grupos[k] == nil { ordem.append(k) }
+        grupos[k, default: []].append(i)
+    }
+    return ordem.compactMap { grupos[$0] }
+}
+
+/// várias demandas do mesmo cliente: o primeiro cartão igualzinho, com uma aba "＋N" embaixo
+/// (parece um maço); clicar abre as outras logo abaixo, cada uma com o cartão normal
+struct PilhaCliente: View {
+    @ObservedObject var store: Store
+    @ObservedObject var m: JanelaModel
+    let itens: [ItemFeed]
+    var mostraFazendo = true
+    /// aberta (Hover serve de caixinha de Bool: @State não compila com as Command Line Tools)
+    @StateObject private var ab = Hover()
+    @StateObject private var h = Hover()
+
+    var body: some View {
+        // item escondido selecionado (setas, notificação): abre sozinho
+        let abre = ab.on || itens.dropFirst().contains { m.sel == $0.id }
+        let resto = itens.count - 1
+        VStack(spacing: 0) {
+            cartao(itens[0])
+            if abre {
+                VStack(spacing: 8) {
+                    ForEach(itens.dropFirst()) { i in cartao(i) }
+                }
+                .padding(.top, 8)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+            Button { alternar(abre) } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: abre ? "chevron.up" : "chevron.down").font(.system(size: 9.5, weight: .bold))
+                    Text(abre ? L("recolher") : (resto == 1 ? L("+1 do mesmo cliente") : String(format: L("+%d do mesmo cliente"), resto)))
+                        .font(.system(size: 11, weight: .semibold)).lineLimit(1)
+                }
+                .foregroundStyle(h.on ? Color.primary : Color.secondary)
+                .frame(maxWidth: .infinity).frame(height: 24)
+                .background(UnevenRoundedRectangle(bottomLeadingRadius: 12, bottomTrailingRadius: 12, style: .continuous)
+                    .fill(Color.primary.opacity(h.on ? 0.06 : 0.035)))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, abre ? 0 : 12)
+            .padding(.top, abre ? 4 : 0)
+            .onHover { on in withAnimation(.easeOut(duration: 0.12)) { h.on = on } }
+            .help(abre ? L("recolher") : itens.dropFirst().map(\.resumo).joined(separator: "\n"))
+        }
+    }
+
+    func alternar(_ abre: Bool) {
+        withAnimation(.snappy(duration: 0.25)) {
+            ab.on = !abre
+            // recolheu com uma de baixo aberta no detalhe: fecha o detalhe junto
+            if abre, let s = m.sel, itens.dropFirst().contains(where: { $0.id == s }) { m.sel = nil }
+        }
+    }
+
+    func cartao(_ i: ItemFeed) -> some View {
+        CartaoFeed(store: store, i: i, compacto: true, selecionado: m.sel == i.id, mostraFazendo: mostraFazendo) { withAnimation(.snappy) { m.sel = i.id } }
     }
 }

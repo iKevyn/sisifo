@@ -29,6 +29,14 @@ enum PreviewRender {
         save(VStack(spacing: 8) { ForEach(s.groups) { ClientCard(store: s, g: $0) } }.padding(14).frame(width: 420), "\(dir)/dem-clients.png")
         save(VStack(spacing: 8) { ForEach(s.visible) { DemandCard(store: s, d: $0) } }.padding(14).frame(width: 420), "\(dir)/dem-cards.png")
         saveWin(PopoverView(store: s), "\(dir)/dem-pop.png")
+        // ponte: caída (Mac dormiu) e conectada
+        let agoraP = Date().timeIntervalSince1970
+        s.connected = false
+        s.ponte = PonteInfo(connected: false, ultimaQueda: PonteQueda(at: agoraP - 180, code: 428, motivo: "Mac dormiu", msg: nil))
+        saveWin(PopoverView(store: s), "\(dir)/ponte-fora.png")
+        s.connected = true
+        s.ponte = PonteInfo(connected: true, since: agoraP - 3600, lastRx: agoraP - 60)
+        saveWin(PopoverView(store: s), "\(dir)/ponte-ok.png")
         typealias L = UnreadChat.Line
         s.unread = [
             UnreadChat(jid: "x@g.us", name: t("Projeto - Studio Norte", "Project · Studio Norte"), isGroup: true, client: "Studio Norte", count: 3, lastTs: now - 900,

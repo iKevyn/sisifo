@@ -390,6 +390,16 @@ EN = {
 "depois": "later",
 "hoje": "today",
 "%@ pediu": "%@ asked",
+"Marcar como lido no WhatsApp": "Mark as read on WhatsApp",
+"Ler no Sísifo também marca como lido no celular (quem mandou vê o azulzinho)": "Reading in Sísifo also marks it read on your phone (the sender sees the blue ticks)",
+"Só pra saber": "Just so you know",
+"contexto, nada pra fazer": "context, nothing to do",
+"ler tudo": "read all",
+"Marcar tudo como lido": "Mark all as read",
+"gerar resposta": "write reply",
+"escrevendo…": "writing…",
+"Gerar uma resposta no teu jeito de escrever": "Write a reply in your own style",
+"Não consegui gerar a resposta": "Couldn't write the reply",
 }
 def esc(s): return s.replace('\\','\\\\').replace('"','\\"').replace('\n','\\n')
 import os

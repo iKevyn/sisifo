@@ -46,3 +46,30 @@ export const equipeTxt = () => {
   const n = equipeNomes()
   return n.length ? `outra pessoa da equipe (${n.join(', ')})` : 'outra pessoa da equipe'
 }
+
+// "Marcar como lido no WhatsApp" (ajuste do app, padrão desligado): quando ligado, ler no Sísifo
+// ("ok, li", abrir a conversa, responder) manda o azulzinho e tira o "não lida" do celular.
+export const marcarLidoWhats = () => cfg().marcarLidoWhats === true
+const ultimoLido = new Map()
+export function lerNoWhats (jid) {
+  if (!jid || !marcarLidoWhats()) return
+  const t = Date.now()
+  if (t - (ultimoLido.get(jid) || 0) < 5000) return
+  ultimoLido.set(jid, t)
+  let token = ''
+  try { token = readFileSync(TOKEN_PATH, 'utf8').trim() } catch { return }
+  fetch(`${BRIDGE}/read`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ jid }), signal: AbortSignal.timeout(15000) })
+    .then((r) => r.json()).then((j) => { if (j?.error) console.log(new Date().toISOString(), 'lido no whats falhou', jid, j.error) })
+    .catch((e) => console.log(new Date().toISOString(), 'lido no whats falhou', jid, e.message))
+}
+
+// "Ignorar conversas arquivadas" (ajuste do app, padrão ligado): conversa arquivada no WhatsApp
+// não vira demanda, não-lida nem marcação. A ponte guarda chats.archived (vem do celular).
+export const ignorarArquivadas = () => cfg().ignorarArquivadas !== false
+// trecho SQL pra pôr no WHERE: `AND ${semArquivadas(db, 'm.chat_jid')}`
+export function semArquivadas (db, col) {
+  if (!ignorarArquivadas()) return '1=1'
+  const tem = db.prepare('PRAGMA table_info(chats)').all().some((c) => c.name === 'archived')
+  return tem ? `${col} NOT IN (SELECT jid FROM chats WHERE archived = 1)` : '1=1'
+}

@@ -3,3 +3,5 @@ app/.build/
 bridge/node_modules/
 .DS_Store
 *.log
+backup/
+.build/

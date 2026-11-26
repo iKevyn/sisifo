@@ -197,6 +197,27 @@ final class ChatStore: ObservableObject {
     private let base = Sisifo.chatBase
     private let session = URLSession.shared
 
+    /// conversas com resposta sendo gerada agora (botão ✨ dentro do campo)
+    @Published var gerando: Set<String> = []
+    /// "gerar resposta": o servidor de demandas lê a conversa e escreve no teu estilo. `sobre` = mensagem que tu vai responder
+    func gerarResposta(_ jid: String, hint: String = "", sobre: String = "") async -> String? {
+        guard !gerando.contains(jid), let url = URL(string: Sisifo.appBase + "/gerar") else { return nil }
+        gerando.insert(jid)
+        defer { gerando.remove(jid) }
+        var r = URLRequest(url: url)
+        r.httpMethod = "POST"
+        r.timeoutInterval = 120
+        r.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        r.httpBody = try? JSONSerialization.data(withJSONObject: ["jid": jid, "hint": hint, "sobre": sobre])
+        struct Resp: Decodable { let texto: String?; let error: String? }
+        guard let (data, _) = try? await session.data(for: r), let j = try? JSONDecoder().decode(Resp.self, from: data) else {
+            erro = "Não consegui gerar a resposta"; return nil
+        }
+        if let t = j.texto, !t.isEmpty { return t }
+        erro = j.error ?? "Não consegui gerar a resposta"
+        return nil
+    }
+
     var selectedChat: Chat? { chats.first { $0.jid == selected } }
     /// só conversas privadas contam pro número da barra e pros sons (grupo é muito barulho)
     var totalUnread: Int { chats.filter { !$0.isGroup }.reduce(0) { $0 + $1.unread } }

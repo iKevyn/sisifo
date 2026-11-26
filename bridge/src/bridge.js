@@ -29,6 +29,8 @@ const num = (x) => (x && typeof x === 'object' && typeof x.toNumber === 'functio
 const upChat = db.prepare(`INSERT INTO chats (jid, name, is_group, last_ts) VALUES (?, ?, ?, ?)
   ON CONFLICT(jid) DO UPDATE SET name = COALESCE(excluded.name, chats.name),
   last_ts = MAX(chats.last_ts, excluded.last_ts)`)
+const upArchived = db.prepare(`INSERT INTO chats (jid, archived) VALUES (?, ?)
+  ON CONFLICT(jid) DO UPDATE SET archived = excluded.archived`)
 const upContact = db.prepare(`INSERT INTO contacts (jid, name, notify) VALUES (?, ?, ?)
   ON CONFLICT(jid) DO UPDATE SET name = COALESCE(excluded.name, contacts.name),
   notify = COALESCE(excluded.notify, contacts.notify)`)
@@ -117,8 +119,30 @@ function saveContact (c) {
   const name = c.name || c.verifiedName || null, notify = c.notify || null
   for (const j of new Set([c.id, c.lid, c.phoneNumber, c.jid].filter(Boolean))) upContact.run(jidNormalizedUser(j), name, notify)
 }
+// arquivar/desarquivar (vem do celular via app state, ou do histórico)
+function saveArchived (c) {
+  if (!c?.id || typeof c.archived !== 'boolean') return
+  upArchived.run(canon(jidNormalizedUser(c.id)), c.archived ? 1 : 0)
+}
+
+// Quem já estava arquivado antes desta versão: pede uma vez o estado completo (snapshot) da coleção
+// regular_low, onde o WhatsApp guarda o "arquivar". Durante isso ignora os eventos de lido/não lido.
+let soArquivo = false
+async function lerArquivadasUmaVez () {
+  if (getKv('archived_snapshot_v1') || !sock || !connected) return
+  soArquivo = true
+  try {
+    await sock.authState.keys.set({ 'app-state-sync-version': { regular_low: null } })
+    await sock.resyncAppState(['regular_low'], false)
+    setKv.run('archived_snapshot_v1', String(nowS()))
+    const n = db.prepare('SELECT COUNT(*) n FROM chats WHERE archived = 1').get().n
+    console.log(`Arquivadas: ${n} conversas.`)
+  } finally { setTimeout(() => { soArquivo = false }, 20000) }
+}
+
 function saveChat (c) {
   if (!c.id) return
+  saveArchived(c)
   const ts = num(c.conversationTimestamp), g = isJidGroup(c.id) ? 1 : 0
   upChat.run(jidNormalizedUser(c.id), c.name || null, g, ts)
   if (c.name && !g) for (const j of [c.pnJid, c.lidJid].filter(Boolean)) upContact.run(jidNormalizedUser(j), c.name, null)
@@ -166,6 +190,15 @@ async function downloadMedia (chat, id) {
   return { path: file, mimetype: mime || null }
 }
 
+// chave original de cada mensagem recebida (remoteJid/participant como o WhatsApp mandou, @lid ou número):
+// o recibo de leitura precisa dela exata. Guarda as últimas ~6000.
+const msgKeys = new Map()
+function lembrarChave (chat, key) {
+  if (key.fromMe || !key.id) return
+  msgKeys.set(`${chat}|${key.id}`, { remoteJid: key.remoteJid, id: key.id, participant: key.participant || undefined, fromMe: false })
+  if (msgKeys.size > 6000) msgKeys.delete(msgKeys.keys().next().value)
+}
+
 function saveMessage (m) {
   const key = m.key || {}
   if (!key.remoteJid || key.remoteJid === 'status@broadcast' || key.remoteJid.endsWith('@newsletter')) return
@@ -184,6 +217,7 @@ function saveMessage (m) {
   const ts = num(m.messageTimestamp)
   const raw = MEDIA_TYPES.has(type) ? JSON.stringify(m, BufferJSON.replacer) : null
   upMsg.run(chat, key.id, sender, key.fromMe ? 1 : 0, ts, type, text, m.pushName || null, raw)
+  lembrarChave(chat, key)
   upChat.run(chat, null, group, ts)
   if (!key.fromMe && m.pushName && sender) upContact.run(sender, null, m.pushName)
   return { chat, id: key.id, type, size: num(c.fileLength) }
@@ -208,6 +242,24 @@ async function backfillLidNames () {
 
 let sock = null
 let connected = false
+// ---- Saúde da ponte (25/11): motivo de cada queda, sono do Mac e última msg recebida, expostos no /status.
+const hora = () => new Date().toLocaleString('pt-BR')
+const MOTIVOS = {
+  401: 'sessão encerrada no celular', 403: 'acesso negado pelo WhatsApp', 408: 'tempo esgotado (internet ou Mac dormindo)',
+  411: 'versão de aparelho incompatível', 428: 'conexão fechada (internet ou Mac dormindo)', 440: 'outra ponte abriu com a mesma sessão',
+  500: 'sessão corrompida', 503: 'erro passageiro no servidor do WhatsApp', 515: 'reinício pedido pelo WhatsApp (normal)'
+}
+let connectedSince = 0, lastRx = 0, ultimaQueda = null, ultimoSono = null
+let relogio = Date.now()
+setInterval(() => {
+  const agora = Date.now(), pulo = agora - relogio
+  relogio = agora
+  if (pulo > 60e3) { // o processo ficou congelado: Mac dormiu
+    ultimoSono = { de: Math.floor((agora - pulo) / 1000), ate: Math.floor(agora / 1000) }
+    console.log(`[${hora()}] Mac dormiu por ~${Math.round(pulo / 60e3)} min (processo congelado), a conexão vai se refazer.`)
+    try { setKv.run('ultimo_sono', JSON.stringify(ultimoSono)) } catch {}
+  }
+}, 10e3).unref()
 
 // ---- Batimento + buracos: a ponte grava "heartbeat" a cada 30s enquanto conectada.
 // Ao reconectar, se o último batimento for antigo, registra o período fora em kv.gaps.
@@ -220,7 +272,7 @@ function recordGap () {
   if (prev && t - prev > GAP_MIN) {
     const gaps = readGaps(); gaps.push({ from: prev, to: t })
     setKv.run('gaps', JSON.stringify(gaps.slice(-30)))
-    console.log(`Buraco registrado: ponte fora de ${new Date(prev * 1000).toLocaleString('pt-BR')} até ${new Date(t * 1000).toLocaleString('pt-BR')}.`)
+    console.log(`[${hora()}] Buraco registrado: ponte fora de ${new Date(prev * 1000).toLocaleString('pt-BR')} até ${new Date(t * 1000).toLocaleString('pt-BR')}.`)
   }
 }
 const beat = () => { if (connected) setKv.run('heartbeat', String(nowS())) }
@@ -301,20 +353,30 @@ async function start () {
       presenceSubscribed.clear()
       recordGap()
       connected = true
+      connectedSince = Math.floor(Date.now() / 1000)
       beat()
       setKv.run('status', 'conectado'); setKv.run('me', jidNormalizedUser(sock.user?.id || ''))
       rmSync(path.join(DATA, 'qr.png'), { force: true })
-      console.log(`Conectado como ${sock.user?.id}.`)
+      console.log(`[${hora()}] Conectado como ${sock.user?.id}.`)
       try {
         const groups = await sock.groupFetchAllParticipating()
         for (const g of Object.values(groups)) upChat.run(g.id, g.subject || null, 1, 0)
       } catch (e) { log.warn(e, 'groupFetch') }
       console.log(`Mapa LID: ${loadLidFiles()} números.`)
+      // espera o backlog offline assentar antes de pedir o snapshot
+      setTimeout(() => lerArquivadasUmaVez().catch((e) => log.warn(e, 'arquivadas')), 60000)
       backfillLidNames().catch((e) => log.warn(e, 'lid backfill')).finally(mergeLidChats)
     }
     if (connection === 'close') {
       connected = false
       const code = lastDisconnect?.error?.output?.statusCode
+      const msg = String(lastDisconnect?.error?.message || lastDisconnect?.error || '').slice(0, 200)
+      const dormiu = ultimoSono && Date.now() / 1000 - ultimoSono.ate < 120
+      const motivo = dormiu ? 'Mac dormiu' : (MOTIVOS[code] || 'motivo desconhecido')
+      ultimaQueda = { at: Math.floor(Date.now() / 1000), code: code ?? null, motivo, msg, conectadoDesde: connectedSince || null }
+      connectedSince = 0
+      setKv.run('ultima_queda', JSON.stringify(ultimaQueda))
+      console.log(`[${hora()}] CONEXÃO FECHOU: código ${code ?? '?'} · ${motivo}${msg ? ` · ${msg}` : ''}`)
       setKv.run('status', `desconectado (${code ?? '?'})`)
       if (code === DisconnectReason.loggedOut) {
         console.error('Sessão encerrada no celular. Gerando um QR novo.')
@@ -345,6 +407,7 @@ async function start () {
     }
   })
   sock.ev.on('messages.upsert', ({ messages, type }) => {
+    if (type === 'notify') lastRx = Math.floor(Date.now() / 1000)
     if (process.env.WA_DBG) console.log('UPSERT', type, messages.length, JSON.stringify(messages.map(m => [m.key?.remoteJid, m.key?.fromMe, m.messageStubType, Object.keys(m.message || {})])))
     for (const m of messages) {
       try {
@@ -362,6 +425,8 @@ async function start () {
   sock.ev.on('chats.update', (cs) => {
     for (const c of cs) {
       if (c.name) saveChat(c)
+      saveArchived(c)
+      if (soArquivo) continue // releitura do estado de arquivadas: não mexe em lido/não lido
       // marcou como lida em outro aparelho = leu tudo até agora; -1 = "marcar como não lida"
       if (c.id && c.unreadCount === 0) markRead(c.id, Math.max(Date.now() / 1000, maxTsOf.get(canon(jidNormalizedUser(c.id))).t || 0))
       else if (c.id && c.unreadCount === -1) upUnread.run(canon(jidNormalizedUser(c.id)))
@@ -388,7 +453,14 @@ async function start () {
 http.createServer(async (req, res) => {
   const reply = (code, obj) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify(obj)) }
   if (req.headers.authorization !== `Bearer ${TOKEN}`) return reply(401, { error: 'token' })
-  if (req.method === 'GET' && req.url === '/status') return reply(200, { connected, me: sock?.user?.id || null, qr: existsSync(path.join(DATA, 'qr.png')) })
+  if (req.method === 'GET' && req.url === '/status') {
+    let gaps = []; try { gaps = readGaps().slice(-5) } catch {}
+    let queda = ultimaQueda; if (!queda) try { queda = JSON.parse(getKv('ultima_queda') || 'null') } catch {}
+    return reply(200, {
+      connected, me: sock?.user?.id || null, since: connectedSince || null, lastRx: lastRx || null,
+      heartbeat: Number(getKv('heartbeat') || 0) || null, ultimaQueda: queda, ultimoSono, gaps, pid: process.pid, qr: existsSync(path.join(DATA, 'qr.png'))
+    })
+  }
   // QR atual (PNG) pra tela de conectar do app
   if (req.method === 'GET' && req.url.startsWith('/qr')) {
     const png = path.join(DATA, 'qr.png')
@@ -459,7 +531,7 @@ http.createServer(async (req, res) => {
       .then((url) => (url ? reply(200, { url }) : reply(404, { error: 'sem foto' })))
       .catch((e) => reply(404, { error: String(e?.message || e) }))
   }
-  if (req.method !== 'POST' || !['/send', '/sticker', '/media', '/delete-chat', '/history'].includes(req.url)) return reply(404, { error: 'rota' })
+  if (req.method !== 'POST' || !['/send', '/sticker', '/media', '/delete-chat', '/history', '/read'].includes(req.url)) return reply(404, { error: 'rota' })
   let body = ''
   req.on('data', (d) => { body += d; if (body.length > 1e5) req.destroy() })
   req.on('end', async () => {
@@ -483,6 +555,29 @@ http.createServer(async (req, res) => {
         db.prepare('DELETE FROM messages WHERE chat_jid = ?').run(chat)
         db.prepare('DELETE FROM chats WHERE jid = ?').run(chat)
         return reply(200, { ok: true })
+      } catch (e) { return reply(500, { error: String(e?.message || e) }) }
+    }
+    if (req.url === '/read') {
+      // Marca a conversa como lida no WhatsApp (azulzinho pra quem mandou, some o contador no celular).
+      // Só quando a pessoa liga "Marcar como lido no WhatsApp" no Sísifo.
+      try {
+        const { jid } = JSON.parse(body)
+        if (!connected) return reply(503, { error: 'WhatsApp desconectado' })
+        const chat = canon(jid)
+        const desde = Number(db.prepare('SELECT read_ts FROM reads WHERE jid = ?').get(chat)?.read_ts || 0)
+        const rows = db.prepare(`SELECT id, sender_jid, ts FROM messages WHERE chat_jid = ? AND from_me = 0 AND ts > ? AND ts > ?
+          ORDER BY ts DESC LIMIT 60`).all(chat, desde, Math.floor(Date.now() / 1000) - 7 * 86400)
+        const grupo = chat.endsWith('@g.us')
+        const lidOf = db.prepare('SELECT lid FROM lid_map WHERE pn = ?')
+        const keys = rows.map((r) => msgKeys.get(`${chat}|${r.id}`) || {
+          remoteJid: chat, id: r.id, fromMe: false,
+          participant: grupo ? (lidOf.get(r.sender_jid)?.lid || r.sender_jid || undefined) : undefined,
+        })
+        if (keys.length) await sock.readMessages(keys)
+        // tira o "não lida" da conversa nos outros aparelhos (celular), ancorado na última mensagem
+        if (keys.length) { try { await sock.chatModify({ markRead: true, lastMessages: [{ key: keys[0], messageTimestamp: rows[0].ts }] }, keys[0].remoteJid) } catch (e) { log.warn(e, 'markRead') } }
+        markRead(chat, Date.now() / 1000)
+        return reply(200, { ok: true, n: keys.length })
       } catch (e) { return reply(500, { error: String(e?.message || e) }) }
     }
     if (req.url === '/media') {
@@ -549,7 +644,8 @@ http.createServer(async (req, res) => {
 }).listen(PORT, '127.0.0.1', () => console.log(`Ponte ouvindo em 127.0.0.1:${PORT}`))
 
 process.on('SIGINT', () => { setKv.run('status', 'parado'); process.exit(0) })
-process.on('SIGTERM', () => { setKv.run('status', 'parado'); process.exit(0) })
+process.on('SIGTERM', () => { console.log(`[${hora()}] Ponte parada (SIGTERM, reinício pedido).`); setKv.run('status', 'parado'); process.exit(0) })
+console.log(`[${hora()}] Ponte iniciando (pid ${process.pid}).`)
 // Erro solto não derruba a ponte em silêncio: loga e sai com código 1 → launchd reinicia.
 process.on('uncaughtException', (e) => { console.error('uncaughtException', e); setKv.run('status', 'caiu (reiniciando)'); process.exit(1) })
 process.on('unhandledRejection', (e) => { log.error(e, 'unhandledRejection') })

@@ -9,7 +9,7 @@ import { createHash } from 'node:crypto'
 import os from 'node:os'
 import path from 'node:path'
 
-import { HOME, CHAT_PORT, DB_PATH, TOKEN_PATH, BRIDGE, WA_DATA, equipeNumeros } from '../server/config.mjs'
+import { HOME, CHAT_PORT, DB_PATH, TOKEN_PATH, BRIDGE, WA_DATA, equipeNumeros, lerNoWhats, semArquivadas } from '../server/config.mjs'
 const PORT = CHAT_PORT
 const DIR = path.join(HOME, 'conversas')
 const AVATARS = path.join(DIR, 'avatars')
@@ -118,7 +118,7 @@ function incomingSince (ts) {
     FROM messages m
     JOIN chats c ON c.jid = m.chat_jid
     LEFT JOIN contacts ct ON ct.jid = m.chat_jid
-    WHERE m.from_me = 0 AND m.ts > ? AND m.type IN ${REAL} AND ${PRIVATE}
+    WHERE m.from_me = 0 AND m.ts > ? AND m.type IN ${REAL} AND ${PRIVATE} AND ${semArquivadas(db, 'm.chat_jid')}
     ORDER BY m.ts DESC LIMIT 20`).all(since)
   return rows.map((r) => {
     const t = (r.text || '').replace(/\s+/g, ' ').trim()
@@ -529,12 +529,12 @@ http.createServer(async (req, res) => {
         })
         const j = await r.json().catch(() => ({}))
         if (!r.ok) return send(res, 502, { error: j.error || 'ponte recusou a figurinha' })
-        st.read[b.jid] = Math.max(Number(st.read[b.jid] || 0), now()); save()
+        st.read[b.jid] = Math.max(Number(st.read[b.jid] || 0), now()); lerNoWhats(b.jid); save()
         return send(res, 200, { ok: true, id: j.id || null })
       } catch (e) { return send(res, 502, { error: e.message }) }
     }
     if (req.method === 'POST' && url.pathname === '/read') {
-      if (isChat(b.jid)) { st.read[b.jid] = Math.max(Number(st.read[b.jid] || 0), now()); save() }
+      if (isChat(b.jid)) { st.read[b.jid] = Math.max(Number(st.read[b.jid] || 0), now()); lerNoWhats(b.jid); save() }
       return send(res, 200, { ok: true })
     }
     if (req.method === 'POST' && url.pathname === '/send-file') {
@@ -543,7 +543,7 @@ http.createServer(async (req, res) => {
         const f = await prepareFile(String(b.path || ''))
         const caption = String(b.text || '').trim() || undefined
         const r = await bridgePost('/send', { jid: b.jid, file: f.file, text: f.kind === 'áudio' ? undefined : caption })
-        st.read[b.jid] = Math.max(Number(st.read[b.jid] || 0), now()); save()
+        st.read[b.jid] = Math.max(Number(st.read[b.jid] || 0), now()); lerNoWhats(b.jid); save()
         return send(res, 200, { ok: true, id: r.id || null, text: f.kind })
       } catch (e) { return send(res, 502, { error: e.message }) }
     }
@@ -561,7 +561,7 @@ http.createServer(async (req, res) => {
       if (!isChat(b.jid)) return send(res, 400, { error: 'conversa inválida' })
       if (!text) return send(res, 400, { error: 'mensagem vazia' })
       const r = await sendToBridge(b.jid, text, quoteFor(b.jid, b.quote))
-      st.read[b.jid] = Math.max(Number(st.read[b.jid] || 0), now()); save()
+      st.read[b.jid] = Math.max(Number(st.read[b.jid] || 0), now()); lerNoWhats(b.jid); save()
       return send(res, 200, { ok: true, id: r.id || null })
     }
     send(res, 404, { error: 'rota' })
