@@ -224,6 +224,7 @@ Regras:
 - "prazo": data AAAA-MM-DD se a mensagem disser (hoje, amanhã, sexta, até dia X), senão null. "urgente": true se pedirem urgência.
 - "msg": índice [n] da mensagem onde o pedido foi feito (se pediram de novo, a mais recente).
 ${firstNew > 0 ? '- Mensagens ANTES da linha "mensagens NOVAS" já foram lidas: use só como contexto ou pra atualizar demanda existente. Demanda NOVA só sai de mensagem depois da linha.\n' : ''}- "imgs": índices [n] das mensagens [foto]/[fotos] que são referência visual dessa demanda (print, foto do que mudar, layout de exemplo). [] se nenhuma.
+- "tamanho": esforço pro ${nome()} fazer: "rapida" (até ~15 min: responder dúvida, criar cupom, trocar texto/link, ativar algo, conferir um print), "media" (~15 min a 2 h: ajuste de seção, banner, bug pontual, configurar app/checkout, frete, relatório simples) ou "grande" (mais de 2 h: tema ou virada de tema, LP/página nova, roupagem de campanha inteira, integração, investigação longa, vários ajustes juntos).
 - "pra_mim": true se é trabalho de ${nome()}, false se é de outra área. "area": "dev", "trafego", "comercial", "design", "operacao" ou "outro".
 - "estado": "aberta" (ainda depende da gente), "respondida" (${equipeTxt()} ou o próprio ${nome()} já respondeu ou resolveu isso na conversa e não sobrou nada pro ${nome()} fazer) ou "esperando_cliente" (a equipe pediu algo pro cliente, tipo e-mail, login, acesso, arquivo, aprovação ou lista, e ainda não chegou; sem isso não dá pra seguir). Também é "esperando_cliente" quando o ${nome()} ou a equipe já deu a resposta ou a solução e o próximo passo é do cliente (ele precisa fazer algo do lado dele, testar, aprovar ou decidir), principalmente se o cliente só confirmou ("ok", "blz", "beleza", "fechado", "vou ver", "vou fazer", 👍): um ok desses NÃO reabre a demanda. Na dúvida, "aberta". Se o cliente mandou o que faltava ou pediu algo novo, volta a ser "aberta".
 - "estado_por": em "respondida", primeiro nome de quem respondeu; em "esperando_cliente", primeiro nome de quem vai mandar. Senão null.
@@ -232,7 +233,7 @@ ${firstNew > 0 ? '- Mensagens ANTES da linha "mensagens NOVAS" já foram lidas: 
 ${ROLE()}
 
 Responda SÓ JSON válido, sem markdown:
-{"demandas":[{"id":"id existente ou null","titulo":"","detalhe":"1 frase com o que precisa ser feito","cliente":"","quem":"primeiro nome de quem pediu","msg":0,"prazo":null,"urgente":false,"feita":false,"pra_mim":true,"area":"dev","imgs":[],"estado":"aberta","estado_por":null,"estado_motivo":null,"pedido_novo":false}]}
+{"demandas":[{"id":"id existente ou null","titulo":"","detalhe":"1 frase com o que precisa ser feito","cliente":"","quem":"primeiro nome de quem pediu","msg":0,"prazo":null,"urgente":false,"feita":false,"pra_mim":true,"area":"dev","imgs":[],"estado":"aberta","estado_por":null,"estado_motivo":null,"pedido_novo":false,"tamanho":"media"}]}
 Sem demandas: {"demandas":[]}`
 
   const out = await askClaude(prompt)
@@ -278,6 +279,7 @@ Sem demandas: {"demandas":[]}`
       area: prev?.owner ? (OWNER_AREA[prev.owner] || 'outro') : String(d.area || (d.pra_mim === false ? 'outro' : 'dev')),
       // respondida / esperando_cliente (dá pra tirar na mão: prev.stateManual)
       ...(prev?.stateManual ? {} : estadoDe(d)), stateV: 1,
+      size: TAMANHOS.includes(d.tamanho) ? d.tamanho : (prev?.size || null),
     }
     if (!prev) {
       st.demands[id] = { ...base, status: d.feita ? 'done' : 'open', autoDone: !!d.feita, createdAt: now(), doneAt: d.feita ? now() : null, notified: !st.booted || !!d.feita }
@@ -306,6 +308,26 @@ ${todo.map((d) => `- id ${d.id} · ${d.client} · ${d.who}: ${d.title}. ${d.deta
   for (const d of todo) if (d.mine === undefined) d.mine = true
   save()
   log('classifiquei', todo.length, 'demandas antigas')
+}
+
+const TAMANHOS = ['rapida', 'media', 'grande']
+// tamanho (esforço) das demandas que vieram antes desse campo existir: só as minhas dos últimos 35 dias, 40 por vez
+async function classificarTamanho () {
+  const ini = now() - 35 * 86400
+  const todo = Object.values(st.demands).filter((d) => !d.size && d.mine !== false && d.status !== 'ignored' && (d.ts || d.createdAt || 0) >= ini).slice(0, 40)
+  if (!todo.length) return
+  const out = await askClaude(`Classifique o ESFORÇO de cada demanda de trabalho de ${nome()} (${papel()}).
+"rapida" = até ~15 min (responder dúvida, criar cupom, trocar texto/link, ativar algo, conferir um print).
+"media" = ~15 min a 2 h (ajuste de seção, banner, bug pontual, configurar app/checkout, frete, relatório simples).
+"grande" = mais de 2 h (tema ou virada de tema, LP/página nova, roupagem de campanha inteira, integração, investigação longa, vários ajustes juntos).
+Responda SÓ JSON: {"r":[{"id":"","tamanho":"rapida|media|grande"}]}
+
+${todo.map((d) => `- id ${d.id} · ${d.client}: ${d.title}. ${d.detail || ''} Mensagem: "${(d.quote || '').slice(0, 160)}"`).join('\n')}`)
+  const json = JSON.parse(out.slice(out.indexOf('{'), out.lastIndexOf('}') + 1))
+  for (const r of json.r || []) { const d = st.demands[r.id]; if (d && TAMANHOS.includes(r.tamanho)) d.size = r.tamanho }
+  for (const d of todo) if (!d.size) d.size = 'media'
+  save()
+  log('tamanho de', todo.length, 'demandas')
 }
 
 // revisão única do estado (respondida / esperando cliente) das demandas que já estavam abertas antes dessa função existir.
@@ -423,6 +445,7 @@ async function pump () {
   try {
     try { await classifyOld() } catch (e) { log('classificar falhou', e.message) }
     try { await revisarEstados() } catch (e) { log('revisar estados falhou', e.message) }
+    try { await classificarTamanho() } catch (e) { log('tamanho falhou', e.message) }
     for (;;) {
       const pend = activeChats().filter((c) => (st.scanned[c.jid] || 0) < c.lastTs)
       scanning = pend.length
@@ -842,7 +865,12 @@ function relatorio (diasN = 7) {
   // mensagens nas conversas de cliente (as que já geraram demanda alguma vez)
   const jids = [...new Set(todas.map((d) => d.jid).filter(Boolean))]
   let recebidas = 0, enviadas = 0, conversas = 0, enviadasFora = 0
-  const jornada = Object.fromEntries(dias.map((d) => [d, { ini: null, fim: null, enviadas: 0 }]))
+  // jornada: o dia de trabalho vira às 5h (msg da madrugada conta pro dia anterior). Pontos de atividade = minhas msgs
+  // em conversa de cliente + os "feito" que marquei à mão. "ativo" = soma dos intervalos entre pontos com até 45 min
+  // de distância (+5 min por bloco), então é um piso: código feito sem mandar msg nem marcar feito não entra.
+  const diaTrab = (ts) => dayOf(ts - 5 * 3600)
+  const pontos = Object.fromEntries(dias.map((d) => [d, []]))
+  const enviadasDia = Object.fromEntries(dias.map((d) => [d, 0]))
   if (jids.length) {
     const ph = jids.map(() => '?').join(',')
     const rows = db.prepare(`SELECT chat_jid, from_me, ts FROM messages WHERE chat_jid IN (${ph}) AND type IN ${REAL} AND ts >= ? ORDER BY ts`).all(...jids, ini)
@@ -852,10 +880,21 @@ function relatorio (diasN = 7) {
       if (!m.from_me) { recebidas++; continue }
       enviadas++
       if (foraHorario(m.ts)) enviadasFora++
-      const j = jornada[dayOf(m.ts)]; if (!j) continue
-      j.enviadas++; if (!j.ini) j.ini = m.ts; j.fim = m.ts
+      const k = diaTrab(m.ts)
+      if (pontos[k]) { pontos[k].push(m.ts); enviadasDia[k]++ }
     }
     conversas = ativos.size
+  }
+  for (const d of feitas) if (!d.autoDone) { const k = diaTrab(d.doneAt); if (pontos[k]) pontos[k].push(d.doneAt) }
+  const jornada = {}
+  for (const dia of dias) {
+    const p = pontos[dia].sort((a, b) => a - b)
+    let ativo = 0
+    for (let k = 0; k < p.length; k++) {
+      const gap = k ? p[k] - p[k - 1] : Infinity
+      ativo += gap <= 45 * 60 ? gap : 5 * 60
+    }
+    jornada[dia] = { ini: p[0] || null, fim: p[p.length - 1] || null, ativo: p.length ? ativo : null, enviadas: enviadasDia[dia] }
   }
 
   const porDia = dias.map((dia) => {
@@ -866,7 +905,7 @@ function relatorio (diasN = 7) {
       feitas: feitas.filter((d) => dayOf(d.doneAt) === dia).length,
       foraHorario: chegaram.filter((d) => dayOf(chegouEm(d)) === dia && foraHorario(chegouEm(d))).length,
       jornadaIni: j.ini ? hm(j.ini) : null, jornadaFim: j.fim ? hm(j.fim) : null,
-      jornadaSeg: j.ini && j.fim ? j.fim - j.ini : null, enviadas: j.enviadas,
+      jornadaSeg: j.ini && j.fim ? j.fim - j.ini : null, ativoSeg: j.ativo, enviadas: j.enviadas,
     }
   })
   const porHora = Array.from({ length: 24 }, (_, h) => chegaram.filter((d) => hourOf(chegouEm(d)) === h).length)
@@ -878,11 +917,11 @@ function relatorio (diasN = 7) {
     const ref = c[0] || f[0] || abertas.find((d) => d.client === client)
     return { client, pedidos: c.length, entregues: f.length, abertas: abertas.filter((d) => d.client === client).length,
       urgentes: c.filter((d) => d.urgent).length, foraHorario: c.filter((d) => foraHorario(chegouEm(d))).length,
-      medianaSeg: mediana(tempos(f)), jid: ref?.jid || null, isGroup: !!ref?.isGroup }
+      medianaSeg: mediana(tempos(f)), grandes: f.filter((d) => d.size === 'grande').length, jid: ref?.jid || null, isGroup: !!ref?.isGroup }
   }).sort((a, b) => b.pedidos - a.pedidos || b.entregues - a.entregues)
 
   const item = (d) => ({ id: d.id, title: d.title, client: d.client, who: d.who || null, ts: chegouEm(d), doneAt: d.doneAt || null,
-    urgent: !!d.urgent, autoDone: !!d.autoDone, jid: d.jid, isGroup: !!d.isGroup, espera: d.state || null, doing: d.doing || null })
+    urgent: !!d.urgent, autoDone: !!d.autoDone, size: d.size || null, jid: d.jid, isGroup: !!d.isGroup, espera: d.state || null, doing: d.doing || null })
   const outras = todas.filter((d) => d.mine === false && noPeriodo(chegouEm(d), ini, agora + 1))
   const porArea = {}
   for (const d of outras) porArea[d.area || 'outro'] = (porArea[d.area || 'outro'] || 0) + 1
@@ -894,6 +933,9 @@ function relatorio (diasN = 7) {
     comPrazo: chegaram.filter((d) => d.due).length,
     foraHorario: chegaram.filter((d) => foraHorario(chegouEm(d))).length,
     entreguesFora: feitas.filter((d) => !d.autoDone && foraHorario(d.doneAt)).length,
+    porTamanho: Object.fromEntries(TAMANHOS.map((t) => [t, feitas.filter((d) => (d.size || 'media') === t).length])),
+    tempoPorTamanho: Object.fromEntries(TAMANHOS.map((t) => [t, mediana(tempos(feitas.filter((d) => (d.size || 'media') === t)))])),
+    ativoTotalSeg: Object.values(jornada).reduce((a, j) => a + (j.ativo || 0), 0),
     pico, picoEm, clientesAtendidos: new Set(chegaram.concat(feitas).map((d) => d.client)).size,
     mensagens: { recebidas, enviadas, enviadasFora, conversas },
     anterior: { entregues: feitasAnt.length, chegaram: chegaramAnt.length, medianaSeg: mediana(tempos(feitasAnt)) },

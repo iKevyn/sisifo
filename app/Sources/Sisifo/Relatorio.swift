@@ -6,11 +6,11 @@ import AppKit
 // (ImageRenderer → CGContext de PDF). Salva em ~/Downloads e abre no Preview.
 
 struct RelDia: Codable { let dia: String; let chegaram: Int; let feitas: Int; let foraHorario: Int
-    let jornadaIni: String?; let jornadaFim: String?; let jornadaSeg: Double?; let enviadas: Int }
+    let jornadaIni: String?; let jornadaFim: String?; let jornadaSeg: Double?; let ativoSeg: Double?; let enviadas: Int }
 struct RelCliente: Codable { let client: String; let pedidos: Int; let entregues: Int; let abertas: Int; let urgentes: Int
-    let foraHorario: Int; let medianaSeg: Double?; let jid: String?; let isGroup: Bool }
+    let foraHorario: Int; let medianaSeg: Double?; let grandes: Int?; let jid: String?; let isGroup: Bool }
 struct RelItem: Codable, Identifiable { let id: String; let title: String; let client: String; let who: String?; let ts: Double
-    let doneAt: Double?; let urgent: Bool; let autoDone: Bool; let jid: String?; let isGroup: Bool; let espera: String?; let doing: String? }
+    let doneAt: Double?; let urgent: Bool; let autoDone: Bool; let size: String?; let jid: String?; let isGroup: Bool; let espera: String?; let doing: String? }
 struct RelMsgs: Codable { let recebidas: Int; let enviadas: Int; let enviadasFora: Int; let conversas: Int }
 struct RelAnterior: Codable { let entregues: Int; let chegaram: Int; let medianaSeg: Double? }
 struct RelOutras: Codable { let total: Int; let porArea: [String: Int] }
@@ -18,6 +18,7 @@ struct RelInfo: Codable {
     let nome: String; let geradoEm: Double; let ini: String; let fim: String
     let entregues: Int; let chegaram: Int; let autoFeitas: Int; let medianaSeg: Double?
     let urgentes: Int; let comPrazo: Int; let foraHorario: Int; let entreguesFora: Int
+    let porTamanho: [String: Int]?; let tempoPorTamanho: [String: Double?]?; let ativoTotalSeg: Double?
     let pico: Int; let picoEm: Double?; let clientesAtendidos: Int
     let mensagens: RelMsgs; let anterior: RelAnterior
     let abertasAgora: Int; let aguardandoCliente: Int; let outrasAreas: RelOutras
@@ -134,6 +135,17 @@ struct RelCtx {
         let d = h / 24, r = h % 24
         return r > 0 ? "\(d) d \(r) h" : "\(d) d"
     }
+    static let tamanhos: [(String, String, String, Color)] = [
+        ("grande", "grandes", "large", Color(red: 0.40, green: 0.36, blue: 0.90)),
+        ("media", "médias", "medium", Color(red: 0.22, green: 0.48, blue: 0.95)),
+        ("rapida", "rápidas", "quick", Color(white: 0.62)),
+    ]
+    static func tamCor(_ t: String?) -> Color { tamanhos.first { $0.0 == (t ?? "media") }?.3 ?? .gray }
+    static func tamNome(_ t: String?) -> String {
+        switch t ?? "media" { case "grande": return tr("grande", "large"); case "rapida": return tr("rápida", "quick"); default: return tr("média", "medium") }
+    }
+    func qtd(_ t: String) -> Int { info.porTamanho?[t] ?? 0 }
+    static func horas(_ s: Double) -> String { let m = Int(s / 60); return "\(m / 60)h\(String(format: "%02d", m % 60))" }
     static func pct(_ a: Int, _ b: Int) -> String { b == 0 ? "0%" : "\(Int((Double(a) / Double(b) * 100).rounded()))%" }
 
     var diasUteis: Int {
@@ -154,7 +166,7 @@ struct RelCtx {
         var id: String { switch self { case .dia(let d, _): return "d" + d; case .item(let i): return i.id } }
         var peso: Double { switch self { case .dia: return 1.5; case .item(let i): return i.title.count > 60 ? 1.35 : 1 } }
     }
-    func paginasEntregas() -> [[Linha]] {
+    func paginasEntregas(primeira: Double = 22.5) -> [[Linha]] {
         var linhas: [Linha] = []
         var porDia: [String: [RelItem]] = [:]
         for i in info.entregas { porDia[isoDia(i.doneAt ?? i.ts), default: []].append(i) }
@@ -163,8 +175,8 @@ struct RelCtx {
             linhas.append(.dia(d, l.count)); linhas += l.map { .item($0) }
         }
         var pags: [[Linha]] = []; var cur: [Linha] = []; var peso = 0.0
-        let cap = 27.0
         for l in linhas {
+            let cap = pags.isEmpty ? primeira : 27.0
             if peso + l.peso > cap || (cur.count > 0 && peso + l.peso + 1 > cap && { if case .dia = l { return true }; return false }()) {
                 pags.append(cur); cur = []; peso = 0
             }
@@ -255,9 +267,9 @@ struct RelResumo: View {
             cabecalho
             frase
             numeros
+            tamanho
             grafico
             HStack(alignment: .top, spacing: 10) { foraDoHorario; pressa; mensagens }.fixedSize(horizontal: false, vertical: true)
-            horas
         }
     }
 
@@ -281,6 +293,7 @@ struct RelResumo: View {
             + Text(tr(" demandas em \(i.porDia.count) dias, ", " tasks came in over \(i.porDia.count) days, "))
             + Text(tr("cerca de \(c.porDiaUtil) por dia útil. ", "about \(c.porDiaUtil) per workday. "))
         let b = Text("\(i.entregues)").foregroundColor(Mood.calm).bold() + Text(tr(" foram entregues", " were delivered"))
+            + Text(c.qtd("grande") > 0 ? tr(", \(c.qtd("grande")) delas grandes,", ", \(c.qtd("grande")) of them large,") : "")
             + Text(i.abertasAgora > 0 ? tr(" e \(i.abertasAgora) seguem abertas.", " and \(i.abertasAgora) are still open.") : tr(" e nada ficou pra trás.", " and nothing is left behind."))
         return (a + b).font(.system(size: 15.5, weight: .medium)).lineSpacing(3).fixedSize(horizontal: false, vertical: true)
     }
@@ -310,9 +323,52 @@ struct RelResumo: View {
         }
     }
 
+    var tamanho: some View {
+        let total = max(1, RelCtx.tamanhos.map { c.qtd($0.0) }.reduce(0, +))
+        return RelCartao(pad: 14) {
+            VStack(alignment: .leading, spacing: 9) {
+                HStack(alignment: .firstTextBaseline) {
+                    RelTitulo(texto: tr("Tamanho do que foi entregue", "Size of what was delivered"),
+                              sub: tr("esforço estimado pela IA a partir do pedido", "effort estimated by AI from the request"))
+                    Spacer()
+                }
+                GeometryReader { g in
+                    HStack(spacing: 3) {
+                        ForEach(RelCtx.tamanhos, id: \.0) { t in
+                            let n = c.qtd(t.0)
+                            if n > 0 {
+                                RoundedRectangle(cornerRadius: 4).fill(t.3)
+                                    .frame(width: max(4, (g.size.width - 6) * CGFloat(n) / CGFloat(total)))
+                            }
+                        }
+                    }
+                }
+                .frame(height: 10)
+                HStack(spacing: 8) {
+                    ForEach(RelCtx.tamanhos, id: \.0) { t in
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Text("\(c.qtd(t.0))").font(.system(size: 20, weight: .bold)).monospacedDigit().foregroundStyle(t.3)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(tr(t.1, t.2)).font(.system(size: 10, weight: .semibold))
+                                Text(faixaTam(t.0)).font(.system(size: 8)).foregroundStyle(RelCtx.cinza).lineLimit(1)
+                                if let m = c.info.tempoPorTamanho?[t.0] ?? nil {
+                                    Text(tr("pedido → entrega: ", "ask → delivery: ") + RelCtx.duracao(m)).font(.system(size: 8)).foregroundStyle(RelCtx.cinza).lineLimit(1)
+                                }
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+            }
+        }
+    }
+    func faixaTam(_ t: String) -> String {
+        switch t { case "grande": return tr("trabalho de mais de 2 h", "over 2 h of work"); case "rapida": return tr("trabalho de até 15 min", "up to 15 min of work"); default: return tr("trabalho de 15 min a 2 h", "15 min to 2 h of work") }
+    }
+
     var grafico: some View {
         let maxv = max(1, i.porDia.map { max($0.feitas, $0.chegaram) }.max() ?? 1)
-        let alt: CGFloat = 92
+        let alt: CGFloat = 64
         return RelCartao(pad: 14) {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
@@ -347,12 +403,14 @@ struct RelResumo: View {
                             Text(c.diaMes(d.dia)).font(.system(size: 7.5)).foregroundStyle(RelCtx.cinza)
                             Text(d.jornadaIni.map { "\($0)–\(d.jornadaFim ?? "")" } ?? "—")
                                 .font(.system(size: 7.5)).monospacedDigit().foregroundStyle(RelCtx.cinza)
+                            Text(d.ativoSeg.map { tr("ativo ", "active ") + RelCtx.duracao($0) } ?? " ")
+                                .font(.system(size: 7.5, weight: .semibold)).monospacedDigit().foregroundStyle(RelCtx.roxo)
                         }
                         .frame(maxWidth: .infinity)
                     }
                 }
-                Text(tr("Embaixo de cada dia: primeira e última mensagem minha nas conversas de cliente.", "Under each day: my first and last message in client chats."))
-                    .font(.system(size: 8)).foregroundStyle(RelCtx.cinza)
+                Text(tr("Embaixo de cada dia: primeira e última atividade minha (o dia vira às 5h) e o tempo ativo, que é o mínimo comprovado pelas mensagens e entregas.", "Under each day: my first and last activity (day turns at 5am) and active time, the minimum proven by messages and deliveries."))
+                    .font(.system(size: 8)).foregroundStyle(RelCtx.cinza).fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -423,8 +481,8 @@ struct RelDetalhe: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             clientes
-            HStack(alignment: .top, spacing: 10) { jornada; VStack(spacing: 10) { abertas; outras } }
-            metodo
+            HStack(alignment: .top, spacing: 10) { jornada; abertas }.fixedSize(horizontal: false, vertical: true)
+            RelResumo(c: c).horas
         }
     }
 
@@ -437,7 +495,7 @@ struct RelDetalhe: View {
     }
 
     var clientes: some View {
-        let lista = Array(i.clientes.prefix(12))
+        let lista = Array(i.clientes.prefix(10))
         let resto = i.clientes.count - lista.count
         let top = max(1, lista.first?.pedidos ?? 1)
         return RelCartao(pad: 14) {
@@ -447,7 +505,7 @@ struct RelDetalhe: View {
                 HStack(spacing: 0) {
                     Text(tr("cliente", "client")).font(.system(size: 8, weight: .semibold)).foregroundStyle(RelCtx.cinza)
                     Spacer()
-                    col(tr("pedidos", "asked"), 92); col(tr("entregues", "done"), 52); col(tr("abertas", "open"), 44)
+                    col(tr("pedidos", "asked"), 84); col(tr("entregues", "done"), 52); col(tr("grandes", "large"), 44); col(tr("abertas", "open"), 42)
                     col(tr("urgentes", "urgent"), 46); col(tr("fora hor.", "after hrs"), 48); col(tr("até entregar", "to deliver"), 62)
                 }
                 .padding(.bottom, 4)
@@ -457,11 +515,11 @@ struct RelDetalhe: View {
                         Text(cl.client).font(.system(size: 10, weight: .medium)).lineLimit(1)
                         Spacer(minLength: 6)
                         HStack(spacing: 5) {
-                            Capsule().fill(RelCtx.azul.opacity(0.35)).frame(width: max(2, 58 * CGFloat(cl.pedidos) / CGFloat(top)), height: 4)
+                            Capsule().fill(RelCtx.azul.opacity(0.35)).frame(width: max(2, 50 * CGFloat(cl.pedidos) / CGFloat(top)), height: 4)
                             Text("\(cl.pedidos)").font(.system(size: 10, weight: .semibold)).monospacedDigit().frame(width: 22, alignment: .trailing)
                         }
-                        .frame(width: 92, alignment: .trailing)
-                        num(cl.entregues, 52, Mood.calm, forte: true); num(cl.abertas, 44, Mood.hot)
+                        .frame(width: 84, alignment: .trailing)
+                        num(cl.entregues, 52, Mood.calm, forte: true); num(cl.grandes ?? 0, 44, RelCtx.roxo, forte: true); num(cl.abertas, 42, Mood.hot)
                         num(cl.urgentes, 46, Mood.hot); num(cl.foraHorario, 48, Mood.warm)
                         Text(RelCtx.duracao(cl.medianaSeg)).font(.system(size: 9.5)).monospacedDigit().foregroundStyle(RelCtx.cinza).frame(width: 62, alignment: .trailing)
                     }
@@ -476,9 +534,9 @@ struct RelDetalhe: View {
     }
 
     var jornada: some View {
-        RelCartao(pad: 14) {
+        RelCartao(pad: 14, cheio: true) {
             VStack(alignment: .leading, spacing: 0) {
-                RelTitulo(texto: tr("Jornada", "Workday"), sub: tr("1ª e última msg minha", "my first and last msg")).padding(.bottom, 8)
+                RelTitulo(texto: tr("Jornada", "Workday"), sub: tr("início → fim · ativo", "start → end · active")).padding(.bottom, 8)
                 ForEach(Array(i.porDia.enumerated()), id: \.offset) { k, d in
                     let tarde = d.jornadaFim.flatMap { Int($0.prefix(2)) }.map { $0 >= 20 || $0 < 5 } ?? false
                     HStack(spacing: 6) {
@@ -486,13 +544,14 @@ struct RelDetalhe: View {
                         Text(d.jornadaIni.map { "\($0) → \(d.jornadaFim ?? "")" } ?? tr("sem mensagens", "no messages"))
                             .font(.system(size: 9.5)).monospacedDigit().foregroundStyle(tarde ? Mood.warm : RelCtx.tinta)
                         Spacer(minLength: 4)
-                        Text(d.jornadaSeg.map { RelCtx.duracao($0) } ?? "").font(.system(size: 9.5, weight: .semibold)).monospacedDigit()
+                        Text(d.ativoSeg.map { RelCtx.duracao($0) } ?? "").font(.system(size: 9.5, weight: .semibold)).monospacedDigit().foregroundStyle(RelCtx.roxo)
                         Text("\(d.enviadas)").font(.system(size: 8.5)).monospacedDigit().foregroundStyle(RelCtx.cinza).frame(width: 26, alignment: .trailing)
                     }
                     .padding(.vertical, 4)
                     .overlay(alignment: .top) { if k > 0 { Rectangle().fill(RelCtx.linha).frame(height: 0.5) } }
                 }
-                Text(tr("última coluna = mensagens que mandei. Laranja = terminou depois das 20h.", "last column = messages I sent. Orange = ended after 8pm."))
+                Text(tr("O dia vira às 5h (madrugada conta pro dia anterior). Ativo = soma dos trechos entre mensagens minhas e entregas com até 45 min de intervalo: é o mínimo, código feito sem mandar mensagem não entra. Última coluna = mensagens que mandei. Laranja = terminou depois das 20h.\(i.ativoTotalSeg.map { " Total ativo na semana: " + RelCtx.horas($0) + "." } ?? "")",
+                        "Day turns at 5am. Active = sum of stretches between my messages and deliveries with gaps up to 45 min: a minimum, coding without messaging is not counted. Last column = messages I sent. Orange = ended after 8pm.\(i.ativoTotalSeg.map { " Total active this week: " + RelCtx.horas($0) + "." } ?? "")"))
                     .font(.system(size: 7.5)).foregroundStyle(RelCtx.cinza).fixedSize(horizontal: false, vertical: true).padding(.top, 6)
             }
         }
@@ -500,13 +559,13 @@ struct RelDetalhe: View {
     }
 
     var abertas: some View {
-        RelCartao(pad: 14) {
+        RelCartao(pad: 14, cheio: true) {
             VStack(alignment: .leading, spacing: 6) {
                 RelTitulo(texto: tr("Ainda abertas", "Still open"), sub: i.aguardandoCliente > 0 ? tr("\(i.aguardandoCliente) esperando o cliente", "\(i.aguardandoCliente) waiting on the client") : nil)
                 if i.abertas.isEmpty {
                     Text(tr("Nada aberto. Tudo que chegou foi entregue.", "Nothing open. Everything that came in was delivered.")).font(.system(size: 9.5)).foregroundStyle(RelCtx.cinza)
                 }
-                ForEach(i.abertas.prefix(5)) { a in
+                ForEach(i.abertas.prefix(6)) { a in
                     HStack(alignment: .top, spacing: 6) {
                         RelAvatar(c: c, jid: a.jid, nome: a.client, size: 14).padding(.top, 1)
                         VStack(alignment: .leading, spacing: 1) {
@@ -517,7 +576,7 @@ struct RelDetalhe: View {
                         Text(RelCtx.duracao(c.info.geradoEm - a.ts)).font(.system(size: 8.5, weight: .semibold)).monospacedDigit().foregroundStyle(Mood.warm)
                     }
                 }
-                if i.abertas.count > 5 { Text("+ \(i.abertas.count - 5)").font(.system(size: 8.5)).foregroundStyle(RelCtx.cinza) }
+                if i.abertas.count > 6 { Text("+ \(i.abertas.count - 6)").font(.system(size: 8.5)).foregroundStyle(RelCtx.cinza) }
             }
         }
     }
@@ -528,11 +587,12 @@ struct RelDetalhe: View {
         return tr("na fila", "queued")
     }
 
-    var outras: some View {
+    var outras: some View { outrasCartao }
+    var outrasCartao: some View {
         let nomes: [String: (String, String)] = ["trafego": ("tráfego", "ads"), "design": ("design", "design"), "comercial": ("comercial", "sales"),
                                                   "operacao": ("operação", "operations"), "outro": ("outros", "other"), "social": ("social", "social")]
         let partes = i.outrasAreas.porArea.sorted { $0.value > $1.value }.map { k, v in "\(v) " + (nomes[k].map { tr($0.0, $0.1) } ?? k) }
-        return RelCartao(pad: 14) {
+        return RelCartao(pad: 14, cheio: true) {
             VStack(alignment: .leading, spacing: 4) {
                 RelTitulo(texto: tr("De outras áreas", "Other areas"))
                 Text(i.outrasAreas.total == 0
@@ -559,7 +619,8 @@ struct RelDetalhe: View {
             """))
             .font(.system(size: 8)).foregroundStyle(RelCtx.cinza).lineSpacing(1.5).fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.horizontal, 4)
+        .padding(14).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(RelCtx.linha, lineWidth: 1))
     }
 }
 
@@ -572,12 +633,22 @@ struct RelEntregas: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            if !continua {
+                VStack(spacing: 12) {
+                    HStack(alignment: .top, spacing: 10) {
+                        RelDetalhe(c: c).outras.frame(width: 220)
+                        RelDetalhe(c: c).metodo
+                    }
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.bottom, 18)
+            }
             HStack(alignment: .firstTextBaseline) {
                 Text(continua ? tr("Entregas (continuação)", "Deliveries (continued)") : tr("Tudo que foi entregue", "Everything delivered"))
                     .font(.system(size: 16, weight: .bold))
                 Spacer()
                 if !continua {
-                    Text(tr("\(c.info.entregues) itens · pedido → entrega", "\(c.info.entregues) items · asked → delivered")).font(.system(size: 9)).foregroundStyle(RelCtx.cinza)
+                    Text(tr("\(c.info.entregues) itens · tamanho · pedido → entrega", "\(c.info.entregues) items · size · asked → delivered")).font(.system(size: 9)).foregroundStyle(RelCtx.cinza)
                 }
             }
             .padding(.bottom, 10)
@@ -599,6 +670,10 @@ struct RelEntregas: View {
                             .lineLimit(2).minimumScaleFactor(0.85).fixedSize(horizontal: false, vertical: true)
                             .frame(width: 100, alignment: .leading)
                         HStack(alignment: .firstTextBaseline, spacing: 5) {
+                            Text(RelCtx.tamNome(it.size)).font(.system(size: 7, weight: .semibold)).foregroundStyle(RelCtx.tamCor(it.size))
+                                .padding(.horizontal, 4).padding(.vertical, 1)
+                                .background(Capsule().fill(RelCtx.tamCor(it.size).opacity(0.13)))
+                                .frame(width: 40, alignment: .leading).fixedSize(horizontal: false, vertical: true)
                             Text(it.title).font(.system(size: 9.5)).lineLimit(2).fixedSize(horizontal: false, vertical: true)
                             if it.urgent {
                                 Text(tr("urgente", "urgent")).font(.system(size: 7, weight: .bold)).foregroundStyle(Mood.hot)
