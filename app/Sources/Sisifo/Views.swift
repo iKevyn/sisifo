@@ -765,6 +765,11 @@ struct GearMenu: View {
                 Divider()
                 Button("Testar animação") { DistributedNotificationCenter.default().postNotificationName(.init("app.sisifo.wake"), object: "Nova demanda de Teste", userInfo: nil, deliverImmediately: true) }
             }
+            Menu("Botão Claude abre em") {
+                ForEach(DestinoClaude.opcoes, id: \.id) { o in
+                    Toggle(L(o.nome), isOn: Binding(get: { DestinoClaude.atual == o.id }, set: { _ in DestinoClaude.atual = o.id }))
+                }
+            }
             Divider()
             Button("Abrir janela (⌥⇧Z)") { store.onOpenWindow?() }
             Button("Abrir ZapFast") { openZapFast() }

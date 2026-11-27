@@ -40,3 +40,13 @@ enum LidoNoWhats {
         set { var c = SisifoConfig.load(); c.marcarLidoWhats = newValue; c.save() }
     }
 }
+
+/// "Mini WhatsApp": janelinha com todas as conversas (privadas e grupos). Padrão desligado.
+enum MiniWhats {
+    static let chave = "miniWhats"
+    static var ligado: Bool {
+        get { UserDefaults.standard.bool(forKey: chave) }
+        set { UserDefaults.standard.set(newValue, forKey: chave); NotificationCenter.default.post(name: .miniWhatsMudou, object: nil) }
+    }
+}
+extension Notification.Name { static let miniWhatsMudou = Notification.Name("miniWhatsMudou") }

@@ -251,23 +251,50 @@ final class ClaudeController {
         pb.clearContents()
         pb.setString(model.text, forType: .string)
         panel?.orderOut(nil)
-        // Se o app Claude Code (Dashi, dev.kevyn.dashi) estiver instalado, abre nele: aberto → aba nova
-        // via notificação; fechado → abre o app com --ask. Sem ele, segue no Terminal.
-        let dashi = "dev.kevyn.dashi"
-        if !NSRunningApplication.runningApplications(withBundleIdentifier: dashi).isEmpty {
-            DistributedNotificationCenter.default().postNotificationName(
-                Notification.Name("dev.kevyn.dashi.ask"), object: model.text, userInfo: nil, deliverImmediately: true)
-            toast.show(L("Abrindo no Claude Code"))
+        switch DestinoClaude.atual {
+        case "bento":
+            let bento = DestinoClaude.bentoId
+            if !NSRunningApplication.runningApplications(withBundleIdentifier: bento).isEmpty {
+                // aberto: vira conversa nova no Bento
+                DistributedNotificationCenter.default().postNotificationName(
+                    Notification.Name("dev.kevyn.dashi.ask"), object: model.text, userInfo: nil, deliverImmediately: true)
+                toast.show(L("Abrindo no Bento"))
+                return
+            }
+            if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bento) {
+                let cfg = NSWorkspace.OpenConfiguration()
+                cfg.arguments = ["--ask", model.text]
+                cfg.activates = true
+                NSWorkspace.shared.openApplication(at: url, configuration: cfg)
+                toast.show(L("Abrindo no Bento"))
+                return
+            }
+        case "copiar":
+            toast.show(L("Pedido copiado, cola onde quiser"))
             return
+        case "iterm", "ghostty", "warp":
+            if DestinoClaude.atual == "iterm", let app = DestinoClaude.url(DestinoClaude.atual) {
+                // o iTerm roda arquivos .command direto
+                let cmd = commandFile()
+                NSWorkspace.shared.open([cmd], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
+                toast.show(L("Abrindo o Claude Code no iTerm"))
+                return
+            }
+            if let app = DestinoClaude.url(DestinoClaude.atual) {
+                // Ghostty e Warp não recebem comando de fora: abre e o pedido já tá copiado
+                NSWorkspace.shared.openApplication(at: app, configuration: NSWorkspace.OpenConfiguration())
+                toast.show(L("Pedido copiado, abre o claude e cola com ⌘V"))
+                return
+            }
+        default:
+            break
         }
-        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: dashi) {
-            let cfg = NSWorkspace.OpenConfiguration()
-            cfg.arguments = ["--ask", model.text]
-            cfg.activates = true
-            NSWorkspace.shared.openApplication(at: url, configuration: cfg)
-            toast.show(L("Abrindo no Claude Code"))
-            return
-        }
+        NSWorkspace.shared.open(commandFile())
+        toast.show(L("Abrindo o Claude Code no Terminal"))
+    }
+
+    /// arquivo .command que abre já rodando o Claude Code com o pedido
+    private func commandFile() -> URL {
         // abre o Terminal já rodando o Claude Code com o pedido (arquivo .command temporário)
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("sisifo", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -283,10 +310,39 @@ final class ClaudeController {
         """
         try? script.write(to: cmd, atomically: true, encoding: .utf8)
         try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: cmd.path)
-        NSWorkspace.shared.open(cmd)
-        toast.show(L("Abrindo o Claude Code no Terminal"))
+        return cmd
     }
 }
+
+/// Em qual app o botão Claude Code manda o pedido (defaults claudeDestino).
+@MainActor
+enum DestinoClaude {
+    static let bentoId = "dev.kevyn.dashi"
+    static let apps: [(id: String, nome: String, bundle: String?)] = [
+        ("bento", "Bento", bentoId),
+        ("terminal", "Terminal", "com.apple.Terminal"),
+        ("iterm", "iTerm", "com.googlecode.iterm2"),
+        ("ghostty", "Ghostty", "com.mitchellh.ghostty"),
+        ("warp", "Warp", "dev.warp.Warp-Stable"),
+        ("copiar", "Só copiar o pedido", nil),
+    ]
+    static func url(_ id: String) -> URL? {
+        guard let b = apps.first(where: { $0.id == id })?.bundle else { return nil }
+        return NSWorkspace.shared.urlForApplication(withBundleIdentifier: b)
+    }
+    /// só os que existem nesse Mac
+    static var opcoes: [(id: String, nome: String)] {
+        apps.filter { $0.bundle == nil || url($0.id) != nil }.map { ($0.id, $0.nome) }
+    }
+    static var atual: String {
+        get {
+            if let v = UserDefaults.standard.string(forKey: "claudeDestino"), opcoes.contains(where: { $0.id == v }) { return v }
+            return url("bento") != nil ? "bento" : "terminal"
+        }
+        set { UserDefaults.standard.set(newValue, forKey: "claudeDestino") }
+    }
+}
+
 
 // MARK: - toast
 

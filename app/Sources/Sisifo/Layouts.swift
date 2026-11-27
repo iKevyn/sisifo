@@ -533,6 +533,7 @@ struct AvisoPonte: View {
 struct TopoJanela<Meio: View, Centro: View>: View {
     @ObservedObject var store: Store
     @ObservedObject var m: JanelaModel
+    @AppStorage(MiniWhats.chave) var miniLigado = false
     @ViewBuilder var meio: Meio
     /// fica no centro da janela de verdade (não empurrado pelo título nem pela busca)
     @ViewBuilder var centro: Centro
@@ -555,6 +556,7 @@ struct TopoJanela<Meio: View, Centro: View>: View {
                 }
                 .padding(.horizontal, 12).frame(minWidth: 110, idealWidth: 200, maxWidth: 200).frame(height: 30)
                 .background(Capsule().fill(Color.primary.opacity(0.07)))
+                if miniLigado { BotaoMiniWhats(zp: store.zp) { store.onMiniWhats?() } }
                 MenuJanela(store: store, m: m)
             }
             .frame(maxWidth: .infinity)
@@ -661,8 +663,15 @@ struct MenuJanela: View {
             Divider()
             Toggle("Som de demanda nova", isOn: Binding(get: { som != "off" },
                 set: { on in som = on ? WakeSound.padrao : "off"; if on { WakeSound.play(WakeSound.padrao) } }))
+            Menu("Botão Claude abre em") {
+                ForEach(DestinoClaude.opcoes, id: \.id) { o in
+                    Toggle(L(o.nome), isOn: Binding(get: { DestinoClaude.atual == o.id }, set: { _ in DestinoClaude.atual = o.id }))
+                }
+            }
             Toggle("Avisar mensagens novas", isOn: Binding(get: { AvisoMensagens.ligado }, set: { AvisoMensagens.ligado = $0 }))
                 .help("Desliga se o WhatsApp do Mac já te avisa, pra não duplicar")
+            Toggle("Mini WhatsApp", isOn: Binding(get: { MiniWhats.ligado }, set: { MiniWhats.ligado = $0 }))
+                .help("Janelinha com todas as conversas, privadas e grupos (botão ao lado dos ajustes)")
             Toggle("Marcar como lido no WhatsApp", isOn: Binding(get: { LidoNoWhats.ligado }, set: { LidoNoWhats.ligado = $0 }))
                 .help("Ler no Sísifo também marca como lido no celular (quem mandou vê o azulzinho)")
             Toggle("Ignorar conversas arquivadas", isOn: Binding(get: { IgnorarArquivadas.ligado }, set: { IgnorarArquivadas.ligado = $0 }))

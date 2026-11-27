@@ -149,9 +149,10 @@ function pendenteRead () {
   return pendCache.read
 }
 
-function chats () {
+function chats (todos = false) {
   const pend = pendenteRead()
-  const work = [...workGroups()]
+  const workSet = workGroups()
+  const work = [...workSet]
   const rows = db.prepare(`
     SELECT c.jid,
       COALESCE(NULLIF(ct.name,''), NULLIF(ct.notify,''), NULLIF(c.name,''), c.jid) AS name,
@@ -160,7 +161,8 @@ function chats () {
     LEFT JOIN contacts ct ON ct.jid = c.jid
     LEFT JOIN reads r ON r.jid = c.jid
     WHERE (${PRIVATE}) OR c.jid IN (${work.map(() => '?').join(',') || "''"})
-    ORDER BY c.last_ts DESC LIMIT 160`).all(...work)
+      ${todos ? "OR (c.jid LIKE '%@g.us')" : ''}
+    ORDER BY c.last_ts DESC LIMIT ${todos ? 260 : 160}`).all(...work)
   return rows.map((r) => {
     const last = db.prepare(`SELECT from_me, type, text, transcript, sender_jid, push_name FROM messages
       WHERE chat_jid = ? AND type IN ${REAL} ORDER BY ts DESC LIMIT 1`).get(r.jid)
@@ -177,7 +179,7 @@ function chats () {
       }
     }
     const group = isGroup(r.jid)
-    return { jid: r.jid, name: r.name, last: preview(last, group ? r.jid : null), lastTs: Number(r.last_ts || 0), unread, group, work: group }
+    return { jid: r.jid, name: r.name, last: preview(last, group ? r.jid : null), lastTs: Number(r.last_ts || 0), unread, group, work: group && workSet.has(r.jid) }
   })
 }
 
@@ -469,7 +471,7 @@ http.createServer(async (req, res) => {
       const jid = url.searchParams.get('chat') || ''
       const since = url.searchParams.get('since') || ''
       return send(res, 200, {
-        connected: await bridgeOk(), chats: chats(), messages: messages(jid), me,
+        connected: await bridgeOk(), chats: chats(url.searchParams.get('todos') === '1'), messages: messages(jid), me,
         dbTs: lastDbTs(), incoming: incomingSince(since),
       })
     }

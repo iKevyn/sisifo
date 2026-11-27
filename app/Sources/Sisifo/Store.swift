@@ -277,6 +277,8 @@ final class Store: ObservableObject {
         didSet { UserDefaults.standard.set(layout.rawValue, forKey: "zap.layout"); onLayout?() }
     }
     var onLayout: (() -> Void)?
+    /// abre/fecha o Mini WhatsApp (AppDelegate liga)
+    var onMiniWhats: (() -> Void)?
     /// chip escolhido na caixa única (nil = tudo)
     @Published var chip: ItemFeed.Tipo?
     /// modo Hoje: itens que mandei "pra depois" nesta sessão

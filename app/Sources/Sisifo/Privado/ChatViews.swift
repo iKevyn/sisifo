@@ -283,10 +283,12 @@ struct CampoBusca: View {
 /// até 4 contatos fixados, estilo Mensagens: avatar grande + nome curto, bolinha azul se não lida
 struct Fixados: View {
     @ObservedObject var store: ChatStore
+    /// mini WhatsApp passa a lista com todos os grupos
+    var fonte: [Chat]? = nil
     let abrir: (String) -> Void
 
     var body: some View {
-        let chats = store.pinned.compactMap { j in store.chats.first { $0.jid == j } }
+        let chats = store.pinned.compactMap { j in (fonte ?? store.chats).first { $0.jid == j } }
         HStack(alignment: .top, spacing: 0) {
             ForEach(chats) { c in
                 Button { abrir(c.jid) } label: {

@@ -36,6 +36,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     lazy var notif = NotifController(store: store)
     lazy var claude = ClaudeController(store: store)
     lazy var janela = JanelaController(store: store)
+    lazy var mini = MiniWhatsController(zp: store.zp)
     let onboarding = OnboardingController()
     let atualizacao = Atualizacao()
     var bridge: Process?
@@ -99,6 +100,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         NSApp.windowsMenu = win
     }
     @objc func abrirJanelaMenu() { janela.show() }
+    @objc func abrirMiniWhats() { mini.show() }
+    @objc func alternarMiniWhats() {
+        MiniWhats.ligado.toggle()
+        if MiniWhats.ligado { mini.show() }
+    }
     @objc func trocarIdioma(_ sender: NSMenuItem) {
         guard let cod = sender.representedObject as? String, cod != Idioma.atual else { return }
         quitting = true
@@ -126,6 +132,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             }
         }
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        // barra muda de clara/escura (wallpaper, modo) → recolore números e balão
+        apObs = item.button?.observe(\.effectiveAppearance) { [weak self] _, _ in
+            DispatchQueue.main.async { MainActor.assumeIsolated { self?.updateIcon() } }
+        }
         item.button?.target = self
         item.button?.action = #selector(statusClicked)
         item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
@@ -175,6 +185,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             }
         }
 
+        store.onMiniWhats = { [weak self] in self?.mini.toggle() }
+        NotificationCenter.default.addObserver(forName: .miniWhatsMudou, object: nil, queue: .main) { [weak self] _ in
+            if !MiniWhats.ligado { self?.mini.fechar() }
+        }
         if SisifoConfig.load().onboarded { startServerIfNeeded(); startChatServerIfNeeded() }
         Task { await store.refresh() }
         Task { await store.zp.refresh() }
@@ -252,6 +266,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                         v.cacheDisplay(in: v.bounds, to: rep)
                         try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: String(cmd.dropFirst(9))))
                     }
+                } else if cmd == "mini" {
+                    self.mini.show()
+                } else if cmd.hasPrefix("miniAba:") {
+                    self.mini.model.aba = MiniModel.Aba(rawValue: String(cmd.dropFirst(8))) ?? .tudo
+                } else if cmd.hasPrefix("miniChat:") {
+                    self.mini.show(String(cmd.dropFirst(9)))
+                } else if cmd.hasPrefix("miniPrint:") {
+                    self.mini.snapshot(String(cmd.dropFirst(10)))
+                } else if cmd == "miniLista" {
+                    self.mini.model.sel = nil
                 } else if cmd == "popZap" {
                     if !self.popover.isShown { self.togglePopover() }
                     self.store.fecharConversa(); self.store.tab = .zap
@@ -422,6 +446,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             i.image = NSImage(systemSymbolName: icone, accessibilityDescription: nil)
             menu.addItem(i)
         }
+        if MiniWhats.ligado {
+            let mw = item(Idioma.ingles ? "Open mini WhatsApp" : "Abrir mini WhatsApp", #selector(abrirMiniWhats))
+            mw.image = NSImage(systemSymbolName: "bubble.left.and.bubble.right", accessibilityDescription: nil)
+            menu.addItem(mw)
+        }
         let rel = item(Idioma.ingles ? "Weekly report (PDF)" : "Relatório da semana (PDF)", #selector(gerarRelatorio))
         rel.image = NSImage(systemSymbolName: "doc.richtext", accessibilityDescription: nil)
         menu.addItem(rel)
@@ -431,12 +460,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         let msgs = item(L("Avisar mensagens novas"), #selector(alternarAvisoMensagens), on: AvisoMensagens.ligado)
         msgs.toolTip = L("Desliga se o WhatsApp do Mac já te avisa, pra não duplicar")
         menu.addItem(msgs)
+        menu.addItem(item(L("Mini WhatsApp"), #selector(alternarMiniWhats), on: MiniWhats.ligado))
         let lido = item(L("Marcar como lido no WhatsApp"), #selector(alternarLidoWhats), on: LidoNoWhats.ligado)
         lido.toolTip = L("Ler no Sísifo também marca como lido no celular (quem mandou vê o azulzinho)")
         menu.addItem(lido)
         let arq = item(L("Ignorar conversas arquivadas"), #selector(alternarArquivadas), on: IgnorarArquivadas.ligado)
         arq.toolTip = L("Conversa arquivada no WhatsApp não vira demanda nem aparece como não lida")
         menu.addItem(arq)
+        // em qual app o botão Claude manda o pedido
+        let dItem = NSMenuItem(title: L("Botão Claude abre em"), action: nil, keyEquivalent: "")
+        let dm = NSMenu()
+        for o in DestinoClaude.opcoes { dm.addItem(item(L(o.nome), #selector(escolherDestino(_:)), obj: o.id, on: DestinoClaude.atual == o.id)) }
+        dItem.submenu = dm
+        menu.addItem(dItem)
         // aparência
         let apItem = NSMenuItem(title: L("Aparência"), action: nil, keyEquivalent: "")
         let ap = NSMenu()
@@ -473,6 +509,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     @objc func escolherSom(_ s: NSMenuItem) {
         guard let v = s.representedObject as? String else { return }
         UserDefaults.standard.set(v, forKey: "sound"); WakeSound.play(v)
+    }
+    @objc func escolherDestino(_ s: NSMenuItem) {
+        guard let v = s.representedObject as? String else { return }
+        DestinoClaude.atual = v
     }
     @objc func escolherTema(_ s: NSMenuItem) {
         guard let v = s.representedObject as? String else { return }
@@ -525,7 +565,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         // marcações: só um "@N" discreto do lado, nunca pula nada na tela
         let at = store.mentionsUnseen
         let rp = store.toReply.count
-        if n != lastCount || at != lastAt || rp != lastReply || b.title.isEmpty != (n == 0 && at == 0 && rp == 0) {
+        // cor dinâmica: resolve na aparência real da barra (clara/escura conforme o wallpaper)
+        let ap = b.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua])?.rawValue ?? ""
+        if n != lastCount || at != lastAt || rp != lastReply || ap != lastAp || b.title.isEmpty != (n == 0 && at == 0 && rp == 0) {
+            lastAp = ap
+            var ink = NSColor.labelColor
+            b.effectiveAppearance.performAsCurrentDrawingAppearance {
+                ink = NSColor(cgColor: NSColor.labelColor.cgColor) ?? .labelColor
+            }
+            let soft = ink.withAlphaComponent(0.85)
             lastCount = n
             lastAt = at
             lastReply = rp
@@ -538,21 +586,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             }
             // conversas esperando resposta minha: balãozinho + número, discreto
             if rp > 0, let sym = NSImage(systemSymbolName: "bubble.left.fill", accessibilityDescription: "esperando resposta")?
-                .withSymbolConfiguration(.init(pointSize: 9.5, weight: .semibold).applying(.init(paletteColors: [.secondaryLabelColor]))) {
+                .withSymbolConfiguration(.init(pointSize: 9.5, weight: .semibold).applying(.init(paletteColors: [soft]))) {
                 let att = NSTextAttachment(); att.image = sym
                 att.bounds = NSRect(x: 0, y: -0.5, width: sym.size.width, height: sym.size.height)
                 t.append(NSAttributedString(string: " "))
                 t.append(NSAttributedString(attachment: att))
                 t.append(NSAttributedString(string: "\(rp)", attributes: [
                     .font: NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .semibold),
-                    .foregroundColor: NSColor.secondaryLabelColor,
+                    .foregroundColor: soft,
                     .baselineOffset: 0.5,
                 ]))
             }
             if at > 0 {
                 t.append(NSAttributedString(string: " @\(at)", attributes: [
                     .font: NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .semibold),
-                    .foregroundColor: NSColor.secondaryLabelColor,
+                    .foregroundColor: soft,
                     .baselineOffset: 0.5,
                 ]))
             }
@@ -566,6 +614,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     var lastCount = -1
     var lastAt = -1
     var lastReply = -1
+    var lastAp = ""
+    var apObs: NSKeyValueObservation?
 
     // MARK: servidor Node
 

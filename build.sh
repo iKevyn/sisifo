@@ -82,8 +82,25 @@ echo "ok: $APP ($(du -sh "$APP" | cut -f1))"
 if [[ "$1" == "--install" ]]; then
   osascript -e "tell application id \"$BUNDLE_ID\" to quit" 2>/dev/null || true
   sleep 1
+  # guarda o ícone do Adesivo (Icon\r) pra ele não voltar pro ícone com fundo
+  ICON_TMP="$(mktemp -d)"
+  if [ -f "/Applications/Sisifo.app/Icon"$'\r' ]; then
+    ditto "/Applications/Sisifo.app/Icon"$'\r' "$ICON_TMP/Icon"
+    xattr -px com.apple.FinderInfo "/Applications/Sisifo.app" 2>/dev/null | tr -d ' \n' > "$ICON_TMP/finderinfo"
+  fi
   rm -rf "/Applications/Sisifo.app"
   ditto "$APP" "/Applications/Sisifo.app"
+  if [ -f "$ICON_TMP/Icon" ]; then
+    ditto "$ICON_TMP/Icon" "/Applications/Sisifo.app/Icon"$'\r'
+    FI="$(cat "$ICON_TMP/finderinfo" 2>/dev/null)"
+    xattr -wx com.apple.FinderInfo "${FI:-0000000000000000040000000000000000000000000000000000000000000000}" "/Applications/Sisifo.app"
+    chflags hidden "/Applications/Sisifo.app/Icon"$'\r'
+    touch "/Applications/Sisifo.app"
+  else
+    # sem ícone salvo: pede pro Adesivo reaplicar
+    open -gj -b dev.kevyn.adesivo 2>/dev/null || true
+  fi
+  rm -rf "$ICON_TMP"
   echo "instalado: /Applications/Sisifo.app"
 fi
 

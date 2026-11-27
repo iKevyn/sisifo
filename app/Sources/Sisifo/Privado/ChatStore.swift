@@ -126,6 +126,9 @@ struct IAInfo: Equatable {
 @MainActor
 final class ChatStore: ObservableObject {
     @Published var chats: [Chat] = []
+    /// mini WhatsApp: privadas + TODOS os grupos (só vem quando a janelinha está aberta)
+    @Published var todas: [Chat] = []
+    var incluirTodos = false
     @Published var messages: [Msg] = []
     @Published var connected = false
     @Published var serverUp = false
@@ -226,6 +229,7 @@ final class ChatStore: ObservableObject {
         var comps = URLComponents(string: base + "/state")!
         var items: [URLQueryItem] = [URLQueryItem(name: "since", value: String(lastDbTs))]
         if let jid = selected { items.append(URLQueryItem(name: "chat", value: jid)) }
+        if incluirTodos { items.append(URLQueryItem(name: "todos", value: "1")) }
         comps.queryItems = items
         guard let url = comps.url else { return }
         let prevDb = lastDbTs
@@ -246,7 +250,11 @@ final class ChatStore: ObservableObject {
             firstRefresh = false
             lastUnreadCount = unreadNow
             serverUp = true
-            if chats != s.chats { chats = s.chats }
+            // o resto do app só enxerga privadas + grupos de trabalho; o mini WhatsApp enxerga tudo
+            let base = s.chats.filter { !$0.isGroup || $0.work == true }
+            if chats != base { chats = base }
+            let tudo = incluirTodos ? s.chats : []
+            if todas != tudo { todas = tudo }
             if messages != s.messages { messages = s.messages }
             if connected != s.connected { connected = s.connected }
             lastDbTs = s.dbTs ?? 0
